@@ -21,6 +21,7 @@
  */
 import { opponentOf, type InstanceId, type PlayerId } from "@riftbound/shared";
 import { autoPay, canAfford } from "./resources.js";
+import { createToken, SPRITE_TOKEN } from "./tokens.js";
 import { drawFromMain, recycleCard, recycleCards } from "./deck.js";
 import { startShowdown, updateControl, checkWin } from "./showdown.js";
 import {
@@ -41,6 +42,7 @@ import {
   giveBuff,
   payDeflect,
   unitsAt,
+  type CardDef,
   type CardInstance,
   type GameState,
 } from "./state.js";
@@ -77,8 +79,10 @@ function killUnit(state: GameState, inst: CardInstance): void {
   }
 }
 
-/** Deals damage to a single unit (rule 404 Deal), killing it if lethal (rule 415.1.a.2). */
+/** Deals damage to a single unit (rule 404 Deal), killing it if lethal (rule 415.1.a.2). Spell/
+ *  ability damage is fully prevented while Unyielding Spirit is active (rule 366 replacement). */
 function dealDamageToUnit(state: GameState, targetIid: InstanceId, amount: number): void {
+  if (state.preventSpellAbilityDamage) return;
   const inst = state.instances[targetIid as number];
   if (!inst || (inst.zone !== "base" && inst.zone !== "battlefield")) return;
   inst.damage += amount;
@@ -88,6 +92,7 @@ function dealDamageToUnit(state: GameState, targetIid: InstanceId, amount: numbe
 /** Deals flat damage to every unit at a battlefield matching `predicate`, killing lethal ones.
  *  Snapshots victims up front so a mid-loop death can't skip/duplicate anyone. */
 function dealDamageToUnitsWhere(state: GameState, amount: number, predicate: (inst: CardInstance) => boolean): void {
+  if (state.preventSpellAbilityDamage) return;
   const victims = Object.values(state.instances).filter(
     (i) => i.zone === "battlefield" && state.defs[i.defId]!.type === "unit" && predicate(i),
   );
@@ -206,6 +211,15 @@ const FINAL_SPARK = "ogs-022-024";
 const RUNE_PRISON = "ogn-050-298";
 const EN_GARDE = "ogn-046-298";
 const DISCIPLINE = "ogn-058-298";
+const WIND_WALL = "ogn-064-298"; // [Reaction] Counter a spell.
+const DEFY = "ogn-045-298"; // [Reaction] Counter a spell costing <= 4 Energy and <= 1 rainbow.
+const MYSTIC_REVERSAL = "ogn-080-298"; // [Reaction] Gain control of a spell.
+const UNYIELDING_SPIRIT = "ogn-145-298"; // [Reaction] Prevent all spell and ability damage this turn.
+const CONSULT_THE_PAST = "ogn-083-298"; // [Hidden][Reaction] Draw 2.
+const HIDDEN_BLADE = "ogn-213-298"; // [Hidden][Action] Kill a unit at a battlefield. Its controller draws 2.
+const FIGHT_OR_FLIGHT = "ogn-168-298"; // [Hidden][Action] Move a unit from a battlefield to its base.
+const BLOCK = "ogn-057-298"; // [Hidden][Action] Give a unit [Shield 3] and [Tank] this turn.
+const SPRITE_CALL = "ogn-094-298"; // [Hidden][Action] Play a ready 3-Might Sprite token with [Temporary].
 const SMOKE_SCREEN = "ogn-093-298";
 const STUPEFY = "ogn-095-298";
 const LAST_STAND = "ogn-069-298";
@@ -243,6 +257,26 @@ function anyUnitTargets(state: GameState, player: PlayerId): InstanceId[] {
   return allUnits(state)
     .filter((i) => canChooseThroughDeflect(state, player, i))
     .map((i) => i.iid);
+}
+
+/** Spells currently on the Chain (rule 352.8.a.2: "spell" refers to an object on the Chain) — the
+ *  legal targets for Counter / gain-control effects. The countering spell itself is already popped
+ *  before it resolves, so it is excluded naturally. `predicate` narrows by the target's cost. */
+function chainSpellTargets(state: GameState, predicate?: (def: CardDef) => boolean): InstanceId[] {
+  return state.chain
+    .filter((c) => c.kind === "spell" && (!predicate || predicate(state.defs[getInstance(state, c.sourceIid).defId]!)))
+    .map((c) => c.sourceIid);
+}
+
+/** Rule 412: mark the Chain item for the given spell instance countered — it will do nothing and be
+ *  trashed (not treated as played) when it reaches the top of the Chain. */
+function counterChainSpell(state: GameState, targetIid: InstanceId | undefined): void {
+  if (targetIid === undefined) return;
+  const item = state.chain.find((c) => c.sourceIid === targetIid);
+  if (item) {
+    item.countered = true;
+    state.log.push(`${state.defs[getInstance(state, targetIid).defId]!.name} will be countered`);
+  }
 }
 
 /** "...a unit at a battlefield" -- narrower than `anyUnitTargets`, excludes units still at base.
@@ -494,6 +528,66 @@ const SPELL_EFFECTS: Record<string, string> = {
     },
   }),
 
+  // Consult the Past ([Hidden][Reaction]): Draw 2.
+  [CONSULT_THE_PAST]: register(`spell:${CONSULT_THE_PAST}`, {
+    mandatory: true,
+    resolve: (state, player) => {
+      drawFromMain(state, player);
+      drawFromMain(state, player);
+    },
+  }),
+
+  // Hidden Blade ([Hidden][Action]): Kill a unit at a battlefield. Its controller draws 2.
+  [HIDDEN_BLADE]: register(`spell:${HIDDEN_BLADE}`, {
+    mandatory: true,
+    legalTargets: battlefieldUnitTargets,
+    resolve: (state, player, _source, targetIid) => {
+      if (targetIid === undefined) return;
+      const target = getInstance(state, targetIid);
+      payDeflect(state, player, target);
+      const controller = target.controller;
+      killUnit(state, target);
+      drawFromMain(state, controller);
+      drawFromMain(state, controller);
+    },
+  }),
+
+  // Fight or Flight ([Hidden][Action]): Move a unit from a battlefield to its base.
+  [FIGHT_OR_FLIGHT]: register(`spell:${FIGHT_OR_FLIGHT}`, {
+    mandatory: true,
+    legalTargets: battlefieldUnitTargets,
+    resolve: (state, player, _source, targetIid) => {
+      if (targetIid === undefined) return;
+      const target = getInstance(state, targetIid);
+      payDeflect(state, player, target);
+      const from = target.battlefield;
+      target.zone = "base";
+      target.battlefield = null;
+      if (from !== null) updateControl(state, from);
+    },
+  }),
+
+  // Block ([Hidden][Action]): Give a unit [Shield 3] and [Tank] this turn.
+  [BLOCK]: register(`spell:${BLOCK}`, {
+    mandatory: true,
+    legalTargets: anyUnitTargets,
+    resolve: (state, player, _source, targetIid) => {
+      if (targetIid === undefined) return;
+      const target = getInstance(state, targetIid);
+      payDeflect(state, player, target);
+      target.shieldThisTurn += 3;
+      target.tankThisTurn = true;
+    },
+  }),
+
+  // Sprite Call ([Hidden][Action]): Play a ready 3-Might Sprite token with [Temporary].
+  [SPRITE_CALL]: register(`spell:${SPRITE_CALL}`, {
+    mandatory: true,
+    resolve: (state, player) => {
+      createToken(state, player, SPRITE_TOKEN, "base", null, /* ready */ true);
+    },
+  }),
+
   // Hextech Ray: Deal 3 to a unit at a battlefield.
   [HEXTECH_RAY]: register(`spell:${HEXTECH_RAY}`, {
     mandatory: true,
@@ -644,6 +738,51 @@ const SPELL_EFFECTS: Record<string, string> = {
       payDeflect(state, player, target);
       target.tempMightDelta += 2;
       drawFromMain(state, player);
+    },
+  }),
+
+  // Wind Wall: Counter a spell. Targets a spell on the Chain (rule 352.8.a.2) — any spell instance
+  // currently in the `chain` zone other than Wind Wall itself (already popped by the time this
+  // resolves, so it's excluded naturally). Marks its Chain item countered (rule 412): it does
+  // nothing and is trashed, not treated as played, when it reaches the top.
+  [WIND_WALL]: register(`spell:${WIND_WALL}`, {
+    mandatory: true,
+    legalTargets: (state) => chainSpellTargets(state),
+    resolve: (state, _player, _source, targetIid) => counterChainSpell(state, targetIid),
+  }),
+
+  // Defy: Counter a spell that costs no more than 4 Energy and no more than 1 rainbow (Power).
+  [DEFY]: register(`spell:${DEFY}`, {
+    mandatory: true,
+    legalTargets: (state) =>
+      chainSpellTargets(state, (def) => def.energy <= 4 && def.power <= 1),
+    resolve: (state, _player, _source, targetIid) => counterChainSpell(state, targetIid),
+  }),
+
+  // Mystic Reversal: Gain control of a spell. You may make new choices for it. Reassigns the Chain
+  // item's controller to the caster; since a spell's targets are chosen as it resolves, the new
+  // controller makes all of its choices when it reaches the top (rule 182.2.a).
+  [MYSTIC_REVERSAL]: register(`spell:${MYSTIC_REVERSAL}`, {
+    mandatory: true,
+    legalTargets: (state) => chainSpellTargets(state),
+    resolve: (state, player, _source, targetIid) => {
+      if (targetIid === undefined) return;
+      const item = state.chain.find((c) => c.sourceIid === targetIid);
+      if (item) {
+        item.controller = player;
+        getInstance(state, targetIid).controller = player;
+        state.log.push(`P${player} gains control of ${state.defs[getInstance(state, targetIid).defId]!.name}`);
+      }
+    },
+  }),
+
+  // Unyielding Spirit: Prevent all spell and ability damage this turn. Sets a turn-scoped flag the
+  // damage helpers honor; combat damage (which never routes through them) is unaffected.
+  [UNYIELDING_SPIRIT]: register(`spell:${UNYIELDING_SPIRIT}`, {
+    mandatory: true,
+    resolve: (state) => {
+      state.preventSpellAbilityDamage = true;
+      state.log.push("Spell and ability damage is prevented this turn (Unyielding Spirit)");
     },
   }),
 

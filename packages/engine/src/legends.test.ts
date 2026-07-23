@@ -28,7 +28,7 @@ const GAREN_STARTER = "ogs-023-024";
 function bareUnit(iid: number, owner: 0 | 1, defId: string, zone: "base" | "battlefield" = "base", battlefield = 0) {
   return {
     iid: iid as never, defId: defId as never, owner, controller: owner, zone, battlefield: zone === "battlefield" ? battlefield : null,
-    exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+    exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
 }
 

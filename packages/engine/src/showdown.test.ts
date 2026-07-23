@@ -40,7 +40,7 @@ function scenario(units: UnitSpec[]): GameState {
       temporary: false,
       stunned: false,
       tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
   });
   instances[900] = makeLegendInstance(900, 0);
@@ -63,6 +63,11 @@ function scenario(units: UnitSpec[]): GameState {
     mulligan: { pending: null },
     showdown: null,
     pendingTrigger: null,
+    chain: [],
+    priority: null,
+    passStreak: 0,
+    nextChainId: 1,
+    preventSpellAbilityDamage: false,
     winner: null,
     log: [],
   };

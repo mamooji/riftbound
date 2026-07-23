@@ -24,8 +24,8 @@ describe("Noxus Hopeful: [Legion] -- costs 2 Energy less", () => {
       ],
       playerPatch: [{ hand: [1 as never, 2 as never], energy: 2 }, {}], // only 2 Energy -- not enough at full price (4)
     });
-    state.instances[1] = { iid: 1 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[2] = { iid: 2 as never, defId: NOXUS_HOPEFUL as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[1] = { iid: 1 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[2] = { iid: 2 as never, defId: NOXUS_HOPEFUL as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
 
     expect(getLegalActions(state, 0).some((a) => a.type === "playCard" && a.iid === 2)).toBe(false); // 4 > 2 Energy available
 
@@ -47,12 +47,12 @@ describe("Rhasa the Sunderer: costs 1 Energy less per card in your trash", () =>
     });
     expect(effectivePlayCost(state, 0, def).energy).toBe(5); // 0 in trash -- no discount
 
-    state.instances[2] = { iid: 2 as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[3] = { iid: 3 as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[2] = { iid: 2 as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[3] = { iid: 3 as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     expect(effectivePlayCost(state, 0, def).energy).toBe(3); // 5 - 2 in trash
 
     for (let i = 4; i <= 8; i++) {
-      state.instances[i] = { iid: i as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+      state.instances[i] = { iid: i as never, defId: "junk" as never, owner: 0, controller: 0, zone: "trash", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     }
     expect(effectivePlayCost(state, 0, def).energy).toBe(0); // never goes negative (7 in trash > 5 cost)
   });

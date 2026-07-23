@@ -23,20 +23,43 @@ import {
   availableTargets,
   checkWin,
   needsAssignment,
-  onActionWindowPlay,
   passActionWindow,
+  playableSpellIids,
   startShowdown,
   updateControl,
 } from "./showdown.js";
 import { ABILITIES, canActivate, payActivationCost } from "./abilities.js";
-import { castSpell } from "./spells.js";
+import { advanceChain, passPriority, pushSpellToChain } from "./chain.js";
 import { effectivePlayCost } from "./costModifiers.js";
 import { ALL_TRIGGERS, onArrival, onPlayCard, resolvePendingTrigger } from "./triggers.js";
-import { getInstance, hasGanking, unitsAt, type CardDef, type CardInstance, type GameState } from "./state.js";
+import { getInstance, hasGanking, unitsAt, windowIsOpen, type CardDef, type CardInstance, type GameState } from "./state.js";
 import type { InstanceId } from "@riftbound/shared";
 
 const MAX_PLIES = 6000;
 const MAX_MULLIGAN = 2;
+const HIDE_COST_POWER = 1; // [Hidden]: hide facedown for one rainbow rune (rule 727.1.b) = 1 Power
+
+/** Whether a facedown [Hidden] card already occupies `battlefield` (rule 727.1.b: at most one). */
+function hasFacedownAt(state: GameState, battlefield: number): boolean {
+  return Object.values(state.instances).some(
+    (i) => i.zone === "facedown" && i.battlefield === battlefield,
+  );
+}
+
+/** Rule 322.5: a facedown [Hidden] card whose battlefield its controller no longer controls is
+ *  discarded to its owner's Trash. Called after control can change. */
+function cleanupHiddenCards(state: GameState): void {
+  for (const inst of Object.values(state.instances)) {
+    if (inst.zone !== "facedown") continue;
+    const bf = inst.battlefield;
+    if (bf === null || state.battlefields[bf]?.controller !== inst.controller) {
+      inst.zone = "trash";
+      inst.battlefield = null;
+      inst.hiddenOnTurn = null;
+      state.log.push(`P${inst.controller}'s hidden card is discarded`);
+    }
+  }
+}
 
 export type Action =
   | { type: "playCard"; iid: number; battlefield?: number; accelerate?: boolean }
@@ -47,6 +70,7 @@ export type Action =
   | { type: "activateAbility"; sourceIid: number; targetIid?: number }
   | { type: "resolveTrigger"; accept: boolean; targetIid?: number; battlefield?: number }
   | { type: "mulligan"; iids: number[] }
+  | { type: "hide"; iid: number; battlefield: number }
   | { type: "pass" }
   | { type: "endTurn" };
 
@@ -92,6 +116,23 @@ function playableBattlefields(state: GameState, player: PlayerId, def: CardDef):
   return out;
 }
 
+/** Rule 727: facedown [Hidden] cards `player` may play right now — hidden on an earlier turn (so
+ *  they've gained [Reaction]) and still at a battlefield the player controls. They ignore their base
+ *  cost, so affordability is not a gate. Playable wherever a [Reaction] is legal. */
+function hiddenPlayableIids(state: GameState, player: PlayerId): number[] {
+  return Object.values(state.instances)
+    .filter(
+      (i) =>
+        i.zone === "facedown" &&
+        i.controller === player &&
+        i.hiddenOnTurn !== null &&
+        state.turn > i.hiddenOnTurn &&
+        i.battlefield !== null &&
+        state.battlefields[i.battlefield]?.controller === player,
+    )
+    .map((i) => i.iid as number);
+}
+
 export function getLegalActions(state: GameState, player: PlayerId): Action[] {
   if (isTerminal(state)) return [];
 
@@ -122,18 +163,29 @@ export function getLegalActions(state: GameState, player: PlayerId): Action[] {
     return out;
   }
 
+  // A Closed State (rule 309.1): a Chain exists and items are awaiting resolution. Only the Priority
+  // holder may act, and only by playing a [Reaction] spell (rule 309.1.a) or passing. Checked before
+  // the Showdown Action Window because a Showdown Closed State is the stricter of the two.
+  if (state.chain.length > 0) {
+    if (player !== state.priority) return [];
+    const out: Action[] = [{ type: "pass" }];
+    for (const iid of playableSpellIids(state, player, /* reactionOnly */ true)) {
+      out.push({ type: "playCard", iid });
+    }
+    // Facedown [Hidden] cards are [Reaction] and may be played in response too (rule 727.6).
+    for (const iid of hiddenPlayableIids(state, player)) out.push({ type: "playCard", iid });
+    return out;
+  }
+
   // A Showdown's pre-combat Action Window (rule 340-345): only the Focus holder may act, and only
   // with [Action]/[Reaction]-timed spells (or passing).
-  if (state.showdown !== null && state.showdown.windowOpen) {
-    if (player !== state.showdown.focus) return [];
+  if (state.showdown !== null && windowIsOpen(state.showdown)) {
+    if (player !== state.priority) return [];
     const out: Action[] = [{ type: "pass" }];
-    const p = state.players[player];
-    for (const iid of [...p.hand, ...(p.championZone !== null ? [p.championZone] : [])]) {
-      const def = state.defs[getInstance(state, iid).defId]!;
-      if (def.type !== "spell" || def.timing === "sorcery") continue;
-      const cost = effectivePlayCost(state, player, def);
-      if (canAfford(state, player, cost.energy, cost.power)) out.push({ type: "playCard", iid: iid as number });
+    for (const iid of playableSpellIids(state, player, /* reactionOnly */ false)) {
+      out.push({ type: "playCard", iid });
     }
+    for (const iid of hiddenPlayableIids(state, player)) out.push({ type: "playCard", iid });
     return out;
   }
 
@@ -172,6 +224,23 @@ export function getLegalActions(state: GameState, player: PlayerId): Action[] {
       actions.push({ type: "playCard", iid: iid as number, accelerate: true });
     }
   }
+
+  // [Hidden] (rule 727): Hide a card facedown at a controlled battlefield for 1 rune (Power). This
+  // is independent of whether the card is affordable to PLAY, so it lives in its own loop over the
+  // hand (only cards in hand can be hidden, not the Champion Zone).
+  if (canAfford(state, player, 0, HIDE_COST_POWER)) {
+    for (const iid of p.hand) {
+      if (!state.defs[getInstance(state, iid).defId]!.hidden) continue;
+      for (const bf of state.battlefields) {
+        if (bf.controller === player && !hasFacedownAt(state, bf.index)) {
+          actions.push({ type: "hide", iid: iid as number, battlefield: bf.index });
+        }
+      }
+    }
+  }
+
+  // Play a facedown [Hidden] card that has gained [Reaction] (rule 727.6) on your own turn.
+  for (const iid of hiddenPlayableIids(state, player)) actions.push({ type: "playCard", iid });
 
   // Float Energy (exhaust a ready rune) / Float Power (recycle a rune).
   for (const rid of p.runePool) {
@@ -268,16 +337,30 @@ export function applyAction(state: GameState, action: Action): GameState {
       }
 
       case "playCard": {
-        // Normally the Turn Player; but during a Showdown's open Action Window, whoever currently
-        // holds Focus may play an [Action]/[Reaction] spell — that can be the DEFENDER, mid the
-        // active player's own turn (rule 340-345).
-        const player = draft.showdown?.windowOpen ? draft.showdown.focus : draft.activePlayer;
+        // Normally the Turn Player; but whenever a Chain exists (Closed State) or a Showdown Action
+        // Window is open, whoever currently holds Priority/Focus may play — that can be the DEFENDER,
+        // mid the active player's own turn, responding with a [Reaction] (rule 309.1.a / 340-345).
+        const inChainOrWindow =
+          draft.chain.length > 0 || (draft.showdown !== null && windowIsOpen(draft.showdown));
+        const player = inChainOrWindow ? draft.priority! : draft.activePlayer;
         const inst = draft.instances[action.iid];
-        if (!inst || inst.controller !== player || (inst.zone !== "hand" && inst.zone !== "championZone")) {
+        if (
+          !inst ||
+          inst.controller !== player ||
+          (inst.zone !== "hand" && inst.zone !== "championZone" && inst.zone !== "facedown")
+        ) {
           throw new Error(`Illegal playCard: instance ${action.iid}`);
         }
         const def = draft.defs[inst.defId]!;
-        const cost = effectivePlayCost(draft, player, def);
+        // Play from Hidden (rule 727): the card must have been hidden on an earlier turn (so it has
+        // gained [Reaction]) and it ignores its base cost. A hidden unit must enter at the very
+        // battlefield it was hidden at (727.1.d.1).
+        const fromHidden = inst.zone === "facedown";
+        if (fromHidden && !(inst.hiddenOnTurn !== null && draft.turn > inst.hiddenOnTurn)) {
+          throw new Error(`Illegal playCard: hidden card ${action.iid} not yet playable`);
+        }
+        const hiddenUnitBf = fromHidden && def.type === "unit" ? inst.battlefield ?? undefined : undefined;
+        const cost = fromHidden ? { energy: 0, power: 0 } : effectivePlayCost(draft, player, def);
         if (!canAfford(draft, player, cost.energy, cost.power)) {
           throw new Error(`Illegal playCard: cannot afford ${def.name}`);
         }
@@ -306,39 +389,44 @@ export function applyAction(state: GameState, action: Action): GameState {
         }
         if (inst.zone === "hand") {
           draft.players[player].hand = draft.players[player].hand.filter((h) => h !== action.iid);
-        } else {
+        } else if (inst.zone === "championZone") {
           draft.players[player].championZone = null;
         }
+        inst.hiddenOnTurn = null; // no longer facedown once played
+        // A hidden unit is forced to its hidden battlefield; otherwise honor the chosen battlefield.
+        const placeBf = hiddenUnitBf ?? action.battlefield;
         if (def.type === "unit" || def.type === "gear") {
           // Sun Disc's "the next unit you play this turn enters ready" only applies to units, and
           // is consumed the moment one is played (whether or not this specific play uses it).
           const sunDiscReady = def.type === "unit" && draft.players[player].nextUnitEntersReady;
           if (def.type === "unit") draft.players[player].nextUnitEntersReady = false;
           inst.exhausted = action.accelerate || sunDiscReady ? false : !def.entersReady; // units/gear enter exhausted unless text says ready, Accelerate was paid, or Sun Disc granted it
-          if (action.battlefield !== undefined) {
+          if (placeBf !== undefined) {
             inst.zone = "battlefield";
-            inst.battlefield = action.battlefield;
-            draft.log.push(`P${player} plays ${def.name} to ${draft.battlefields[action.battlefield]!.name}`);
-            resolveArrival(draft, action.battlefield, player, [inst]);
+            inst.battlefield = placeBf;
+            draft.log.push(`P${player} plays ${def.name} to ${draft.battlefields[placeBf]!.name}`);
+            resolveArrival(draft, placeBf, player, [inst]);
           } else {
             inst.zone = "base";
             draft.log.push(`P${player} plays ${def.name}`);
           }
         } else {
-          inst.zone = "trash"; // default landing zone; a spell's own effect (below) may override it
+          inst.zone = "chain"; // spells go onto the Chain (rule 351), not straight to the trash
+          inst.battlefield = null; // a spell played from hidden leaves its battlefield
           draft.log.push(`P${player} plays ${def.name}`);
         }
-        // onPlayCard BEFORE castSpell: a spell's own effect commonly opens a pendingTrigger (e.g.
-        // Falling Star's two target picks), and fireTrigger's "one pending decision at a time"
-        // guard would otherwise silently skip onPlayCard's own checks (e.g. Lux - Lady of
-        // Luminosity's "when you play a spell costing 5+, draw 1") until that resolves -- by which
-        // point onPlayCard is never called again for this play, dropping the trigger entirely.
+        // onPlayCard BEFORE the spell reaches the Chain: a spell's own effect commonly opens a
+        // pendingTrigger (e.g. Falling Star's two target picks), and fireTrigger's "one pending
+        // decision at a time" guard would otherwise silently skip onPlayCard's own checks (e.g. Lux
+        // - Lady of Luminosity's "when you play a spell costing 5+, draw 1") until that resolves --
+        // by which point onPlayCard is never called again for this play, dropping it entirely.
         onPlayCard(draft, player, inst);
-        if (def.type === "spell") castSpell(draft, player, inst);
+        if (def.type === "spell") pushSpellToChain(draft, player, inst.iid);
         draft.players[player].playedCardThisTurn = true;
-        // If this was played into an open Action Window and fully resolved (no pendingTrigger
-        // left open awaiting a target), Focus passes and the window keeps advancing.
-        if (draft.pendingTrigger === null) onActionWindowPlay(draft);
+        // Drive the Chain: opponents get a response window before the spell resolves; `advanceChain`
+        // suspends on any real decision (a reaction to play, or the spell's own target choice) and
+        // owns returning Focus/Priority to the Action Window or Turn Player when the Chain drains.
+        advanceChain(draft);
         break;
       }
 
@@ -385,15 +473,43 @@ export function applyAction(state: GameState, action: Action): GameState {
         resolvePendingTrigger(draft, action.accept, action.targetIid as InstanceId | undefined, action.battlefield);
         for (const bf of draft.battlefields) updateControl(draft, bf.index);
         checkWin(draft);
-        // A spell played into an open Action Window may have needed this pick before it could
-        // fully resolve (e.g. Incinerate's own target) -- once there's no more pendingTrigger left,
-        // the window can advance (Focus passes).
-        if (draft.pendingTrigger === null) onActionWindowPlay(draft);
+        // This pick may have been a resolving spell's own target (e.g. Incinerate). Once the choice
+        // is closed, resume driving the Chain (response windows, resolution, Focus hand-back).
+        if (draft.pendingTrigger === null) advanceChain(draft);
+        break;
+      }
+
+      case "hide": {
+        // Rule 727: hide a [Hidden] card facedown at a battlefield you control, for one rune. Not a
+        // Play — no Chain is created — and only on your own turn in an Open State.
+        const player = draft.activePlayer;
+        const inst = draft.instances[action.iid];
+        if (!inst || inst.controller !== player || inst.zone !== "hand") {
+          throw new Error(`Illegal hide: instance ${action.iid}`);
+        }
+        if (!draft.defs[inst.defId]!.hidden) throw new Error("Illegal hide: card is not [Hidden]");
+        const bf = draft.battlefields[action.battlefield];
+        if (!bf || bf.controller !== player) throw new Error("Illegal hide: you don't control that battlefield");
+        if (hasFacedownAt(draft, action.battlefield)) throw new Error("Illegal hide: a facedown card is already there");
+        if (!canAfford(draft, player, 0, HIDE_COST_POWER)) throw new Error("Illegal hide: cannot pay the rune");
+        autoPay(draft, player, 0, HIDE_COST_POWER);
+        draft.players[player].hand = draft.players[player].hand.filter((h) => h !== action.iid);
+        inst.zone = "facedown";
+        inst.battlefield = action.battlefield;
+        inst.hiddenOnTurn = draft.turn;
+        draft.log.push(`P${player} hides a card at ${bf.name}`);
         break;
       }
 
       case "pass": {
-        passActionWindow(draft);
+        // In a Closed State the pass advances the Chain's priority round (rule 335); with no Chain,
+        // it is a Showdown Action Window pass (rule 344.3).
+        if (draft.chain.length > 0) {
+          passPriority(draft);
+          advanceChain(draft);
+        } else {
+          passActionWindow(draft);
+        }
         break;
       }
 
@@ -463,6 +579,8 @@ export function applyAction(state: GameState, action: Action): GameState {
 
     // A Showdown may still be waiting on the non-active side; keep it moving where possible.
     advanceShowdown(draft);
+    // Rule 322.5: discard any facedown [Hidden] card whose controller lost its battlefield.
+    cleanupHiddenCards(draft);
 
     if (draft.winner === null && draft.ply >= MAX_PLIES) {
       const [a, b] = draft.players;

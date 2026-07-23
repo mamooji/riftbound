@@ -19,7 +19,7 @@ function putInHand(state: GameState, iid: number, owner: 0 | 1, defId: string): 
     temporary: false,
     stunned: false,
     tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
   state.instances[iid] = inst;
   state.players[owner]!.hand.push(iid as never);
@@ -182,7 +182,7 @@ describe("Progress Day: Draw 4", () => {
       state.instances[iid] = {
         iid: iid as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
         battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -254,7 +254,7 @@ describe("Mobilize: Channel 1 rune exhausted. If you can't, draw 1", () => {
     state.instances[50] = {
       iid: 50 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[0]!.mainDeck.push(50 as never);
     state.defs["filler"] = makeCardDef({ type: "unit", id: "filler" as never });
@@ -410,7 +410,7 @@ describe("Reinforce: look at top 5, may banish+play a unit (5 Energy cheaper), r
       state.instances[iid] = {
         iid: iid as never, defId: (iid === 201 ? "big-unit" : "filler") as never, owner: 0, controller: 0,
         zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -439,7 +439,7 @@ describe("Reinforce: look at top 5, may banish+play a unit (5 Energy cheaper), r
       state.instances[iid] = {
         iid: iid as never, defId: (iid === 201 ? "big-unit" : "filler") as never, owner: 0, controller: 0,
         zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -554,7 +554,7 @@ describe("Invert Timelines: Each player discards their hand, then draws 4", () =
         state.instances[iid] = {
           iid: iid as never, defId: "filler" as never, owner: seat, controller: seat, zone: "mainDeck",
           battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-          stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+          stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
         };
         state.players[seat]!.mainDeck.push(iid as never);
       }

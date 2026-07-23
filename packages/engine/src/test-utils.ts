@@ -32,6 +32,7 @@ export function makeCardDef(overrides: Partial<CardDef> & Pick<CardDef, "type">)
     auraMightBonus: 0,
     gankingWhileBuffed: false,
     timing: "sorcery",
+    hidden: false,
     image: null,
     ...overrides,
   };
@@ -54,7 +55,7 @@ export function makeLegendInstance(iid: number, owner: PlayerId): CardInstance {
     temporary: false,
     stunned: false,
     tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
 }
 
@@ -108,7 +109,7 @@ export function makeBareGame(opts: BareGameOptions = {}): GameState {
       temporary: u.temporary ?? false,
       stunned: u.stunned ?? false,
       tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
   }
   for (const d of opts.extraDefs ?? []) defs[d.id] = d;
@@ -156,6 +157,11 @@ export function makeBareGame(opts: BareGameOptions = {}): GameState {
     mulligan: { pending: null },
     showdown: null,
     pendingTrigger: null,
+    chain: [],
+    priority: null,
+    passStreak: 0,
+    nextChainId: 1,
+    preventSpellAbilityDamage: false,
     winner: null,
     log: [],
   };

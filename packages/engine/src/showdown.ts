@@ -14,7 +14,7 @@
  * non-decision.
  */
 import { opponentOf, VICTORY_POINTS_TO_WIN, type PlayerId } from "@riftbound/shared";
-import { dealsDamage, effectiveMight, getInstance, hasTank, unitsAt, totalMightAt, type CardInstance, type GameState } from "./state.js";
+import { dealsDamage, effectiveMight, getInstance, hasTank, unitsAt, totalMightAt, windowIsOpen, type CardInstance, type GameState } from "./state.js";
 import { canAfford } from "./resources.js";
 import { effectivePlayCost } from "./costModifiers.js";
 import {
@@ -85,42 +85,49 @@ export function needsAssignment(state: GameState, player: PlayerId): boolean {
  * whether to offer that side anything beyond "pass".
  */
 export function hasLegalActionSpell(state: GameState, player: PlayerId): boolean {
-  const p = state.players[player];
-  const candidates = [...p.hand, ...(p.championZone !== null ? [p.championZone] : [])];
-  return candidates.some((iid) => {
-    const def = state.defs[getInstance(state, iid).defId]!;
-    if (def.type !== "spell" || def.timing === "sorcery") return false;
-    const cost = effectivePlayCost(state, player, def);
-    return canAfford(state, player, cost.energy, cost.power);
-  });
+  return playableSpellIids(state, player, /* reactionOnly */ false).length > 0;
 }
 
-/** Skips a side past the Action Window while they have nothing legal to play, closing the window
- *  (and starting normal damage-assignment math) once both players have passed in a row. */
-function advanceActionWindow(state: GameState): void {
-  const sd = state.showdown;
-  if (!sd || !sd.windowOpen) return;
+/**
+ * Whether `player` has an affordable `[Reaction]` spell to play in a Closed State — i.e. *in
+ * response* to an item already on the Chain (rule 309.1.a: only Reaction-timed cards are legally
+ * timed while a Chain exists). Drives both `advanceChain`'s auto-pass and `getLegalActions`.
+ */
+export function hasLegalReaction(state: GameState, player: PlayerId): boolean {
+  return playableSpellIids(state, player, /* reactionOnly */ true).length > 0;
+}
 
-  while (sd.windowOpen) {
-    if (hasLegalActionSpell(state, sd.focus)) return; // a real decision — wait for the player
-    sd.passesInRow += 1;
-    if (sd.passesInRow >= 2) {
+/** Instance ids of spells `player` may legally play right now, by timing (hand + Champion Zone,
+ *  affordable). `reactionOnly` restricts to `[Reaction]` (Closed State); otherwise `[Action]` and
+ *  `[Reaction]` (Showdown Open State). Shared by the predicates above and `getLegalActions`. */
+export function playableSpellIids(state: GameState, player: PlayerId, reactionOnly: boolean): number[] {
+  const p = state.players[player];
+  const candidates = [...p.hand, ...(p.championZone !== null ? [p.championZone] : [])];
+  return candidates.filter((iid) => {
+    const def = state.defs[getInstance(state, iid).defId]!;
+    if (def.type !== "spell") return false;
+    if (reactionOnly ? def.timing !== "reaction" : def.timing === "sorcery") return false;
+    const cost = effectivePlayCost(state, player, def);
+    return canAfford(state, player, cost.energy, cost.power);
+  }) as number[];
+}
+
+/** Skips the Focus holder past the Action Window while they have nothing legal to play, closing the
+ *  window (and starting normal damage-assignment math) once both players have passed in a row. Focus
+ *  is `state.priority`, the pass streak is `state.passStreak` (rule 313.2/344). */
+export function advanceActionWindow(state: GameState): void {
+  const sd = state.showdown;
+  if (!sd || !windowIsOpen(sd)) return;
+
+  while (windowIsOpen(sd)) {
+    if (hasLegalActionSpell(state, state.priority!)) return; // a real decision — wait for the player
+    state.passStreak += 1;
+    if (state.passStreak >= 2) {
       closeActionWindow(state);
       return;
     }
-    sd.focus = opponentOf(sd.focus);
+    state.priority = opponentOf(state.priority!);
   }
-}
-
-/** After a spell is played (or fully resolved, if it opened its own targeting decision) during an
- *  open Action Window: Focus passes to the other player and the "passed in a row" streak resets
- *  (rule 343/344.4) — then auto-advance again in case the new holder also has nothing to do. */
-export function onActionWindowPlay(state: GameState): void {
-  const sd = state.showdown;
-  if (!sd || !sd.windowOpen) return;
-  sd.passesInRow = 0;
-  sd.focus = opponentOf(sd.focus);
-  advanceActionWindow(state);
 }
 
 /** A real (not auto-) pass by the Focus holder — rule 344.3/344.3.a/344.4: closes the window if
@@ -128,12 +135,12 @@ export function onActionWindowPlay(state: GameState): void {
  *  past anyone else with nothing to do. */
 export function passActionWindow(state: GameState): void {
   const sd = state.showdown;
-  if (!sd || !sd.windowOpen) throw new Error("passActionWindow: no open Action Window");
-  sd.passesInRow += 1;
-  if (sd.passesInRow >= 2) {
+  if (!sd || !windowIsOpen(sd)) throw new Error("passActionWindow: no open Action Window");
+  state.passStreak += 1;
+  if (state.passStreak >= 2) {
     closeActionWindow(state);
   } else {
-    sd.focus = opponentOf(sd.focus);
+    state.priority = opponentOf(state.priority!);
     advanceActionWindow(state);
   }
 }
@@ -143,7 +150,6 @@ export function passActionWindow(state: GameState): void {
  *  must be reflected — this is why totals are computed here, not at Showdown creation). */
 function closeActionWindow(state: GameState): void {
   const sd = state.showdown!;
-  sd.windowOpen = false;
   const attacker = sd.attacker;
   const defender = opponentOf(attacker);
 
@@ -171,11 +177,10 @@ export function startShowdown(state: GameState, battlefield: number, attacker: P
     attacker,
     remaining: [0, 0],
     assigned: {},
-    toAssign: null,
-    windowOpen: true,
-    focus: attacker, // rule 341: the player who applied Contested status gains Focus first
-    passesInRow: 0,
+    toAssign: null, // window open (rule 340-345)
   };
+  state.priority = attacker; // rule 341: the player who applied Contested status gains Focus first
+  state.passStreak = 0;
   advanceActionWindow(state);
 }
 
@@ -208,7 +213,7 @@ function autoAssign(state: GameState, side: PlayerId): void {
  */
 export function advanceShowdown(state: GameState): void {
   const sd = state.showdown;
-  if (!sd || sd.windowOpen) return; // the Action Window governs progression until it closes
+  if (!sd || windowIsOpen(sd)) return; // the Action Window governs progression until it closes
 
   while (sd.toAssign !== null) {
     const side = sd.toAssign;

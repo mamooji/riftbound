@@ -63,7 +63,7 @@ export function createGame(
       temporary: false,
       stunned: false,
       tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     return iid;
   }
@@ -135,6 +135,11 @@ export function createGame(
     mulligan: { pending: 0 },
     showdown: null,
     pendingTrigger: null,
+    chain: [],
+    priority: null,
+    passStreak: 0,
+    nextChainId: 1,
+    preventSpellAbilityDamage: false,
     winner: null,
     log: [`P${firstPlayer} goes first`],
   };

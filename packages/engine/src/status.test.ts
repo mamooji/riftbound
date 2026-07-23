@@ -119,7 +119,7 @@ describe("[Accelerate]", () => {
       temporary: false,
       stunned: false,
       tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["rune-fury"] = makeCardDef({ type: "rune", id: "rune-fury" as never, colors: ["fury"] });
     state.players[0]!.runePool.push(500 as never);

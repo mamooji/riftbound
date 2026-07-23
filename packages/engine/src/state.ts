@@ -33,7 +33,9 @@ export type Zone =
   | "championZone"
   | "legend"
   | "trash"
-  | "banishment";
+  | "banishment"
+  | "chain"
+  | "facedown";
 
 /** A static card definition, projected from the Set 1 catalog into what the engine needs. */
 export interface CardDef {
@@ -83,6 +85,9 @@ export interface CardDef {
   /** Only meaningful for spell-type cards — see `SpellTiming`. Non-spells are always "sorcery"
    *  (unused). */
   timing: SpellTiming;
+  /** [Hidden] (rule 727): may be hidden facedown at a controlled battlefield, then played later
+   *  ignoring its base cost. Present on spells, units, and gear. */
+  hidden: boolean;
   image: string | null;
 }
 
@@ -120,6 +125,10 @@ export interface CardInstance {
   /** [Tank] granted "this turn" by a spell/ability (e.g. Block), on top of whatever the card's own
    *  printed `tank` flag says. Cleared the same way as `stunned`. */
   tankThisTurn: boolean;
+  /** For a card in the `facedown` zone (Hidden, rule 727): the turn number it was hidden on. It
+   *  gains `[Reaction]` and becomes playable starting the *next* turn (`state.turn > hiddenOnTurn`).
+   *  `null` for any card not currently hidden. */
+  hiddenOnTurn: number | null;
 }
 
 export interface PlayerState {
@@ -168,36 +177,64 @@ export interface Battlefield {
 }
 
 /**
- * An in-progress Showdown. Rule 337-345: it opens with an ACTION WINDOW (`windowOpen: true`) where
- * players may play `[Action]`/`[Reaction]` spells, alternating Focus, before any damage math
- * happens — only once both players pass in a row with nothing played (or neither had anything
- * legal to play in the first place, closing it instantly) does it become a normal damage-
- * assignment Showdown: both sides deal damage equal to their total Might, each side distributes it
- * among the OTHER side's units (lethal before wound). Collected one side at a time for UI purposes
- * but applied simultaneously (to pre-Showdown state).
+ * An in-progress Showdown. Rule 337-345: it opens as a pre-combat ACTION WINDOW where players may
+ * play `[Action]`/`[Reaction]` spells, alternating Focus, before any damage math happens — only
+ * once both players pass in a row with nothing played (or neither had anything legal to play in the
+ * first place, closing it instantly) does it become a normal damage-assignment Showdown: both sides
+ * deal damage equal to their total Might, each side distributes it among the OTHER side's units
+ * (lethal before wound). Collected one side at a time for UI purposes but applied simultaneously.
+ *
+ * The window's bookkeeping lives on `GameState` in the general `priority`/`passStreak` fields (Focus
+ * *is* Priority during a Showdown — rule 313.2): the window is **open** while `toAssign === null`
+ * (Showdown Open State), and **closed** into damage assignment once `toAssign` names a side.
  */
 export interface Showdown {
   battlefield: number;
   attacker: PlayerId;
-  /** Damage each side has left to assign. Meaningless (stays [0,0]) while `windowOpen`. */
+  /** Damage each side has left to assign. Meaningless (stays [0,0]) while the window is open. */
   remaining: [number, number];
   /** damage assigned to each instance id (by the opposing side). */
   assigned: Record<number, number>;
-  /** Which side is currently assigning (null while `windowOpen`, or once both are done). */
+  /** Which side is currently assigning. `null` while the Action Window is open (rule 340-345), then
+   *  set to the attacker when the window closes; back to `null` only momentarily once both sides
+   *  finish, immediately before the Showdown resolves and is cleared. */
   toAssign: PlayerId | null;
-  /** Whether the pre-combat Action Window (rule 340-345) is still open. */
-  windowOpen: boolean;
-  /** Who currently holds Focus (may play a spell or pass) while `windowOpen`. Starts as the player
-   *  who applied Contested status (rule 341) — the attacker for a Combat-initiated Showdown. */
-  focus: PlayerId;
-  /** Consecutive passes with nothing played in between; reset to 0 by any spell played. The window
-   *  closes once this reaches 2 (both players passed in a row) — rule 345. */
-  passesInRow: number;
+}
+
+/** The Showdown's Action Window is open (Showdown Open State) exactly while no side is yet assigning
+ *  damage — rule 340-345. During this window `state.priority` is the Focus holder. */
+export function windowIsOpen(sd: Showdown): boolean {
+  return sd.toAssign === null;
 }
 
 /** Pre-game mulligan: seat 0 decides first, then seat 1; null once both are done. */
 export interface MulliganState {
   pending: PlayerId | null;
+}
+
+/**
+ * A Finalized item on the Chain (rule 326-336). The Chain is a LIFO stack: the LAST element is the
+ * top (newest), and resolves first. A spell played, or an ability activated/triggered, becomes a
+ * Chain Item; while it sits here other players get Priority to respond with `[Reaction]`s before it
+ * resolves. `resolve()` runs the item's game effect when it reaches the top and every player has
+ * passed Priority in a row.
+ *
+ * Phase A models only spells (`kind: "spell"`): the item is resolved by re-dispatching through
+ * `castSpell(state, controller, <spell instance>)`, so the ~59 already-scripted spell effects are
+ * reused unchanged — only *when* they run moves (to resolution time) rather than eagerly at play.
+ */
+export interface ChainItem {
+  /** Stable id, unique within a game; how Counter / Mystic Reversal will name a specific item. */
+  id: number;
+  kind: "spell";
+  /** The card/permanent this item came from — for a spell, the spell instance on the `chain` zone. */
+  sourceIid: InstanceId;
+  /** Who controls the item (chooses its targets, gains its triggers). May differ from Turn Player,
+   *  and may be reassigned mid-flight (Mystic Reversal — "gain control of a spell"). */
+  controller: PlayerId;
+  /** Set by a Counter effect (rule 412, Defy/Wind Wall): the item is skipped at resolution — it
+   *  does nothing and is trashed, not treated as played. */
+  countered?: boolean;
 }
 
 /**
@@ -237,6 +274,19 @@ export interface GameState {
   showdown: Showdown | null;
   /** Non-null while an optional ("may") triggered ability awaits its decision. */
   pendingTrigger: PendingTrigger | null;
+  /** The Chain (rule 326): LIFO stack of Finalized items awaiting resolution. Empty = Open State. */
+  chain: ChainItem[];
+  /** Who currently holds Priority — permission to act (rule 312). `null` while nobody may act
+   *  (mid-cleanup, or between auto-resolving chain items within one `applyAction`). */
+  priority: PlayerId | null;
+  /** Consecutive Priority passes with no item added since (rule 335): the top of the Chain resolves
+   *  once every player has passed in a row. */
+  passStreak: number;
+  /** Monotonic source of `ChainItem.id`s. */
+  nextChainId: number;
+  /** While true, all spell/ability damage this turn is prevented (Unyielding Spirit). Cleared in the
+   *  Expiration Step. Does not affect combat damage, which never routes through the deal helpers. */
+  preventSpellAbilityDamage: boolean;
   winner: PlayerId | "draw" | null;
   log: string[];
 }

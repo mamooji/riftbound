@@ -131,6 +131,7 @@ export function toCardDef(c: CatalogCard): CardDef {
     playToOpenBattlefield: playToOpenBattlefield(c),
     accelerateCost: accelerateCost(c),
     timing: timing(c),
+    hidden: leadingKeyword(leadingKeywordTokens(c.text), "Hidden") !== null,
     image: c.image,
   };
 }

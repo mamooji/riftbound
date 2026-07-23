@@ -6,6 +6,7 @@ import {
   maxEnergy,
   maxPower,
   needsAssignment,
+  windowIsOpen,
   type CardDef,
   type CardInstance,
   type GameState,
@@ -54,6 +55,10 @@ export function Board() {
 
   const legal = useMemo(() => humanLegalActions(game), [game]);
   const playable = useMemo(() => new Set(legal.filter((a) => a.type === "playCard").map((a) => a.iid)), [legal]);
+  // [Hidden] (rule 727): cards in hand that can be hidden facedown, and the union used to decide
+  // which hand cards are interactive at all.
+  const hideable = useMemo(() => new Set(legal.filter((a) => a.type === "hide").map((a) => a.iid)), [legal]);
+  const handInteractive = useMemo(() => new Set([...playable, ...hideable]), [playable, hideable]);
   const movable = useMemo(
     () => new Set(legal.filter((a) => a.type === "moveUnits").map((a) => a.iids[0]!)),
     [legal],
@@ -107,7 +112,11 @@ export function Board() {
   const humanTurn = game.activePlayer === HUMAN && game.winner === null && game.showdown === null;
   // A Showdown's pre-combat Action Window (rule 340-345): the human holds Focus and may play an
   // [Action]/[Reaction] spell, or Pass -- can happen even when it's NOT their turn (defending).
-  const humanHasFocus = game.showdown !== null && game.showdown.windowOpen && game.showdown.focus === HUMAN;
+  const humanHasFocus =
+    game.showdown !== null && windowIsOpen(game.showdown) && game.priority === HUMAN;
+  // A Closed State (a Chain exists, rule 309.1): the human holds Priority and may respond with a
+  // [Reaction] spell before the pending spell resolves — even on the bot's turn.
+  const humanCanReact = game.chain.length > 0 && game.priority === HUMAN && game.winner === null;
   const canPass = legal.some((a) => a.type === "pass");
 
   /** True if this hand/Champion-Zone card has at least one legal battlefield destination (i.e.
@@ -115,16 +124,22 @@ export function Board() {
    *  control a battlefield with (or that allow an open one) get this; spells/gear/units with
    *  nowhere to go yet don't, and just play straight to base on a single click. */
   function hasBattlefieldOption(iid: number): boolean {
-    return legal.some((a) => a.type === "playCard" && a.iid === iid && a.battlefield !== undefined);
+    return legal.some(
+      (a) =>
+        (a.type === "playCard" && a.iid === iid && a.battlefield !== undefined) ||
+        (a.type === "hide" && a.iid === iid),
+    );
   }
   function toggleCardSelect(iid: number) {
-    if (!playable.has(iid)) return;
+    if (!playable.has(iid) && !hideable.has(iid)) return;
     if (!hasBattlefieldOption(iid)) {
-      playAction({ type: "playCard", iid });
+      playAction({ type: "playCard", iid }); // no battlefield/hide choice -> just play it
       return;
     }
     if (selectedCard === iid) {
-      playAction({ type: "playCard", iid }); // clicking the selected card again -> play to base
+      // Clicking the selected card again plays it to base (only if it's actually playable now;
+      // a hide-only card just deselects).
+      if (playable.has(iid)) playAction({ type: "playCard", iid });
       setSelectedCard(null);
     } else {
       setSelectedCard(iid);
@@ -157,9 +172,21 @@ export function Board() {
       legal.some((a) => a.type === "playCard" && a.iid === selectedCard && a.battlefield === bfIndex)
     );
   }
+  /** The selected [Hidden] card can be hidden facedown at this battlefield (rule 727). */
+  function canHideHere(bfIndex: number): boolean {
+    return (
+      selectedCard !== null &&
+      legal.some((a) => a.type === "hide" && a.iid === selectedCard && a.battlefield === bfIndex)
+    );
+  }
   function clickBattlefield(bfIndex: number) {
     if (canPlayHere(bfIndex)) {
       playAction({ type: "playCard", iid: selectedCard!, battlefield: bfIndex });
+      setSelectedCard(null);
+      return;
+    }
+    if (canHideHere(bfIndex)) {
+      playAction({ type: "hide", iid: selectedCard!, battlefield: bfIndex });
       setSelectedCard(null);
       return;
     }
@@ -202,10 +229,12 @@ export function Board() {
             name={bf.name}
             controller={bf.controller}
             isShowdown={game.showdown?.battlefield === bf.index}
-            selectable={canMoveHere(bf.index) || canPlayHere(bf.index)}
+            selectable={canMoveHere(bf.index) || canPlayHere(bf.index) || canHideHere(bf.index)}
             onClick={() => clickBattlefield(bf.index)}
             humanColor={humanColor}
             botColor={botColor}
+            playableFacedown={playable}
+            onPlayFacedown={(iid) => playAction({ type: "playCard", iid })}
             movable={movable}
             assignable={humanAssigning ? assignable : undefined}
             selectedUnits={selectedUnits}
@@ -263,8 +292,8 @@ export function Board() {
 
       <HandFan
         game={game}
-        humanTurn={humanTurn || humanHasFocus}
-        playable={playable}
+        humanTurn={humanTurn || humanHasFocus || humanCanReact}
+        playable={handInteractive}
         selectedCard={selectedCard}
         onPlay={toggleCardSelect}
         onInspect={setInspected}
@@ -273,9 +302,9 @@ export function Board() {
       <div className="mt-1 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={backToSetup}><RotateCcw /> New duel</Button>
-          <StatusText game={game} humanTurn={humanTurn} humanAssigning={humanAssigning} humanHasFocus={humanHasFocus} selectedCount={selectedUnits.size} cardSelected={selectedCard !== null} />
+          <StatusText game={game} humanTurn={humanTurn} humanAssigning={humanAssigning} humanHasFocus={humanHasFocus} humanCanReact={humanCanReact} selectedCount={selectedUnits.size} cardSelected={selectedCard !== null} />
         </div>
-        {humanHasFocus ? (
+        {humanHasFocus || humanCanReact ? (
           <Button size="lg" variant="secondary" disabled={!canPass} onClick={() => playAction({ type: "pass" })}>
             <X /> Pass
           </Button>
@@ -402,9 +431,10 @@ function CardPreview({ def }: { def: CardDef | null }) {
   );
 }
 
-function StatusText({ game, humanTurn, humanAssigning, humanHasFocus, selectedCount, cardSelected }: { game: GameState; humanTurn: boolean; humanAssigning: boolean; humanHasFocus: boolean; selectedCount: number; cardSelected: boolean }) {
+function StatusText({ game, humanTurn, humanAssigning, humanHasFocus, humanCanReact, selectedCount, cardSelected }: { game: GameState; humanTurn: boolean; humanAssigning: boolean; humanHasFocus: boolean; humanCanReact: boolean; selectedCount: number; cardSelected: boolean }) {
   let text = "Opponent is playing…";
   if (game.winner !== null) text = "";
+  else if (humanCanReact) text = "A spell is on the Chain — respond with a [Reaction] from your hand, or Pass to let it resolve.";
   else if (humanHasFocus) text = "You have Focus — play an Action/Reaction spell from your hand, or Pass.";
   else if (humanAssigning) text = `Showdown! Assign ${game.showdown!.remaining[HUMAN]} damage — click an enemy unit (lethal before wounding).`;
   else if (humanTurn) {
@@ -569,9 +599,44 @@ function FaceDownHand({ count }: { count: number }) {
   );
 }
 
+/** Facedown [Hidden] cards staged at a battlefield (rule 727). Rendered as card backs; the human's
+ *  own facedown cards that are currently playable get a highlight and a click-to-play handler. */
+function FacedownRow({ game, bf, playable, onPlay }: {
+  game: GameState; bf: number; playable?: Set<number>; onPlay?: (iid: number) => void;
+}) {
+  const cards = Object.values(game.instances).filter((i) => i.zone === "facedown" && i.battlefield === bf);
+  if (cards.length === 0) return null;
+  return (
+    <div className="flex justify-center gap-1">
+      {cards.map((i) => {
+        const iid = i.iid as number;
+        const canPlay = i.controller === HUMAN && (playable?.has(iid) ?? false);
+        return (
+          <button
+            key={iid}
+            type="button"
+            disabled={!canPlay}
+            onClick={(e) => { e.stopPropagation(); if (canPlay) onPlay?.(iid); }}
+            title={canPlay ? "Play this hidden card (ignores its cost)" : "A hidden card"}
+            className="h-9 w-[26px] shrink-0 rounded-[4px] border bg-[repeating-linear-gradient(135deg,hsl(245_40%_18%)_0_6px,hsl(245_40%_14%)_6px_12px)] shadow-inner transition-transform"
+            style={{
+              borderColor: canPlay ? "hsl(var(--ring))" : "hsl(var(--border))",
+              boxShadow: canPlay ? "0 0 0 2px hsl(var(--ring))" : undefined,
+              cursor: canPlay ? "pointer" : "default",
+            }}
+          >
+            <Sparkles className="mx-auto size-3 text-primary/70" />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function BattlefieldView(props: {
   game: GameState; bf: number; def: CardDef; name: string; controller: PlayerId | null; isShowdown: boolean;
   selectable: boolean; onClick: () => void; humanColor: CardColor; botColor: CardColor;
+  playableFacedown?: Set<number>; onPlayFacedown?: (iid: number) => void;
   movable: Set<number>; assignable: Set<number> | undefined; selectedUnits: Set<number>;
   onSelectUnit: (iid: number) => void; onAssign: (tid: number) => void; onInspectDef: (def: CardDef | null) => void;
   castableNoTarget?: Set<number>; castableWithTarget?: Set<number>; selectedAbility?: number | null; onCast?: (iid: number) => void;
@@ -606,6 +671,7 @@ function BattlefieldView(props: {
         </div>
         {props.isShowdown ? <span className="flex items-center gap-1 rounded-full bg-rose-500/25 px-2 py-0.5 text-[10px] font-bold text-rose-200"><Swords className="size-3" />showdown</span> : <ControlBadge controller={props.controller} />}
       </div>
+      <FacedownRow game={game} bf={bf} playable={props.playableFacedown} onPlay={props.onPlayFacedown} />
       <UnitRow
         game={game} player={BOT} bf={bf} own={false} assignable={props.assignable} onAssign={props.onAssign}
         movable={props.movable} selectedUnits={props.selectedUnits} onSelectUnit={props.onSelectUnit} onInspectDef={props.onInspectDef}

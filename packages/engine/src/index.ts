@@ -25,6 +25,7 @@ export {
   isMighty,
   hasGanking,
   dealsDamage,
+  windowIsOpen,
 } from "./state.js";
 
 export type { AbilitySpec, AbilityCost } from "./abilities.js";

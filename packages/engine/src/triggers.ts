@@ -260,6 +260,8 @@ interface OnPlayCtx {
 const KAI_SA = "ogn-247-298";
 const VOLIBEAR = "ogn-249-298";
 const JINX = "ogn-251-298";
+const TEEMO_SCOUT = "ogn-197-298"; // [Hidden] When you play me, give me +3 Might this turn.
+const BLASTCONE_FAE = "ogn-097-298"; // [Hidden] When you play me, give a unit -2 Might this turn (min 1).
 const DARIUS = "ogn-253-298";
 const AHRI = "ogn-255-298";
 const LEE_SIN_LEGEND = "ogn-257-298";
@@ -662,6 +664,33 @@ const ON_PLAY_SELF_KIND: Record<string, string> = {
     legalTargets: (state, player, sourceIid) => friendlyUnits(state, player, sourceIid),
     resolve: (state, _player, _source, targetIid) => {
       if (targetIid !== undefined) giveBuff(getInstance(state, targetIid));
+    },
+  }),
+  // Teemo - Scout ([Hidden]): when you play me, give me +3 Might this turn.
+  [TEEMO_SCOUT]: register(`onPlaySelf:${TEEMO_SCOUT}`, {
+    mandatory: true,
+    condition: (_state, _player, sourceIid, ctx) => (ctx as OnPlayCtx).playedIid === sourceIid,
+    resolve: (state, _player, sourceIid) => {
+      getInstance(state, sourceIid).tempMightDelta += 3;
+    },
+  }),
+  // Blastcone Fae ([Hidden]): when you play me, give a unit -2 Might this turn (min 1, clamped by
+  // effectiveMight). Targets another unit -- excludes itself via friendlyUnits' exclude? No: "a
+  // unit" is any unit, so use all units minus self.
+  [BLASTCONE_FAE]: register(`onPlaySelf:${BLASTCONE_FAE}`, {
+    mandatory: true,
+    condition: (_state, _player, sourceIid, ctx) => (ctx as OnPlayCtx).playedIid === sourceIid,
+    legalTargets: (state, _player, sourceIid) =>
+      Object.values(state.instances)
+        .filter(
+          (i) =>
+            i.iid !== sourceIid &&
+            (i.zone === "base" || i.zone === "battlefield") &&
+            state.defs[i.defId]!.type === "unit",
+        )
+        .map((i) => i.iid),
+    resolve: (state, _player, _source, targetIid) => {
+      if (targetIid !== undefined) getInstance(state, targetIid).tempMightDelta -= 2;
     },
   }),
   // Cithria of Cloudfield: when you play ANOTHER unit, buff me.

@@ -16,7 +16,7 @@ function putInHand(state: GameState, iid: number, owner: 0 | 1, defId: string): 
     iid: iid as never, defId: defId as never, owner, controller: owner, zone: "hand",
     battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
     stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0,
-    shieldThisTurn: 0, tankThisTurn: false,
+    shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
   state.instances[iid] = inst;
   state.players[owner]!.hand.push(iid as never);
@@ -100,7 +100,7 @@ describe("Disintegrate: Deal 3 to a unit at a battlefield. If this kills it, dra
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["filler"] = makeCardDef({ type: "unit", id: "filler" as never });
     putInHand(state, 2, 0, DISINTEGRATE);
@@ -225,7 +225,7 @@ describe("Smoke Screen / Stupefy: Might penalties clamp to a minimum of 1", () =
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["filler"] = makeCardDef({ type: "unit", id: "filler" as never });
     putInHand(state, 2, 0, STUPEFY);
@@ -258,7 +258,7 @@ describe("Retreat: Return a friendly unit to its owner's hand. Its owner channel
     state.instances[10] = {
       iid: 10 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["rune"] = makeCardDef({ type: "rune", id: "rune" as never });
     putInHand(state, 2, 0, RETREAT);
@@ -569,7 +569,7 @@ describe("Shakedown: deal 6 to an enemy unit UNLESS its controller has the caste
       state.instances[iid] = {
         iid: iid as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
         battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -644,11 +644,11 @@ describe("Cannon Barrage: Deal 2 to all enemy units in combat (the currently act
       ],
       playerPatch: [{ energy: 1, power: 1, hand: [] }, {}],
     });
-    // Manually open a Showdown at battlefield 0 without resolving it (simulating mid-combat).
-    state.showdown = {
-      battlefield: 0, attacker: 0, remaining: [1, 2], assigned: {}, toAssign: null,
-      windowOpen: true, focus: 0, passesInRow: 0,
-    };
+    // Manually open a Showdown at battlefield 0 without resolving it (simulating mid-combat). The
+    // Action Window is open (toAssign === null); P0 holds Focus/Priority.
+    state.showdown = { battlefield: 0, attacker: 0, remaining: [1, 2], assigned: {}, toAssign: null };
+    state.priority = 0;
+    state.passStreak = 0;
     putInHand(state, 4, 0, CANNON_BARRAGE);
     state = applyAction(state, { type: "playCard", iid: 4 });
     expect(state.instances[2]!.zone).toBe("trash"); // killed by the 2 damage at the active combat
@@ -715,7 +715,7 @@ describe("Blind Fury: the opponent reveals their top card; banish it and play it
     state.instances[10] = {
       iid: 10 as never, defId: "revealed" as never, owner: 1, controller: 1, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[1]!.mainDeck.push(10 as never);
     putInHand(state, 2, 0, BLIND_FURY);
@@ -737,7 +737,7 @@ describe("Stacked Deck: look at top 3, put 1 in hand, recycle the rest", () => {
       state.instances[iid] = {
         iid: iid as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
         battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -794,7 +794,7 @@ describe("Salvage: You may kill a gear (a REAL may, even with exactly one candid
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[0]!.mainDeck.push(10 as never);
     putInHand(state, 2, 0, SALVAGE);
@@ -873,7 +873,7 @@ describe("Meditation: as an additional cost, you may exhaust a friendly unit; dr
       state.instances[iid] = {
         iid: iid as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
         battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -895,7 +895,7 @@ describe("Meditation: as an additional cost, you may exhaust a friendly unit; dr
       state.instances[iid] = {
         iid: iid as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
         battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
       };
       state.players[0]!.mainDeck.push(iid as never);
     }
@@ -914,7 +914,7 @@ describe("Meditation: as an additional cost, you may exhaust a friendly unit; dr
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[0]!.mainDeck.push(10 as never);
     putInHand(state, 2, 0, MEDITATION);
@@ -970,7 +970,7 @@ describe("Spot-checks: remaining single-target damage/buff spells never auto-res
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[0]!.mainDeck.push(10 as never);
     putInHand(state, 3, 0, VOID_SEEKER);
@@ -993,7 +993,7 @@ describe("Spot-checks: remaining single-target damage/buff spells never auto-res
     state.instances[10] = {
       iid: 10 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.players[0]!.mainDeck.push(10 as never);
     putInHand(state, 3, 0, DISCIPLINE);
@@ -1002,5 +1002,100 @@ describe("Spot-checks: remaining single-target damage/buff spells never auto-res
     state = applyAction(state, { type: "resolveTrigger", accept: true, targetIid: 2 });
     expect(state.instances[2]!.tempMightDelta).toBe(2);
     expect(state.players[0]!.hand).toContain(10 as never);
+  });
+});
+
+describe("Hidden card effects (played from hand as normal spells/units — rule 727.3)", () => {
+  const CONSULT_THE_PAST = "ogn-083-298";
+  const HIDDEN_BLADE = "ogn-213-298";
+  const FIGHT_OR_FLIGHT = "ogn-168-298";
+  const BLOCK = "ogn-057-298";
+  const SPRITE_CALL = "ogn-094-298";
+  const TEEMO_SCOUT = "ogn-197-298";
+  const BLASTCONE_FAE = "ogn-097-298";
+
+  /** Adds `count` filler cards to `player`'s main deck so draws have something to pull. */
+  function stockDeck(state: GameState, player: 0 | 1, ids: number[]) {
+    state.defs["filler"] = makeCardDef({ type: "unit", id: "filler" as never });
+    for (const iid of ids) {
+      state.instances[iid] = {
+        iid: iid as never, defId: "filler" as never, owner: player, controller: player, zone: "mainDeck",
+        battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
+        stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
+      };
+      state.players[player]!.mainDeck.push(iid as never);
+    }
+  }
+
+  it("Consult the Past draws 2", () => {
+    let state = makeBareGame({ extraDefs: [spell(CONSULT_THE_PAST, 4, 0)], playerPatch: [{ energy: 4, hand: [] }, {}] });
+    stockDeck(state, 0, [10, 11]);
+    putInHand(state, 1, 0, CONSULT_THE_PAST);
+    state = applyAction(state, { type: "playCard", iid: 1 });
+    expect(state.players[0]!.hand).toEqual(expect.arrayContaining([10 as never, 11 as never]));
+  });
+
+  it("Hidden Blade kills a unit at a battlefield and its controller draws 2", () => {
+    let state = makeBareGame({
+      units: [{ iid: 1, owner: 1, defId: "u1" as never, zone: "battlefield", battlefield: 0 }],
+      extraDefs: [makeCardDef({ type: "unit", id: "u1" as never, might: 3 }), spell(HIDDEN_BLADE, 2, 0)],
+      playerPatch: [{ energy: 2, hand: [] }, { hand: [] }],
+    });
+    stockDeck(state, 1, [10, 11]);
+    putInHand(state, 2, 0, HIDDEN_BLADE);
+    state = applyAction(state, { type: "playCard", iid: 2 });
+    expect(state.instances[1]!.zone).toBe("trash"); // killed
+    expect(state.players[1]!.hand).toEqual(expect.arrayContaining([10 as never, 11 as never])); // its controller drew 2
+  });
+
+  it("Fight or Flight moves a unit from a battlefield to its base", () => {
+    let state = makeBareGame({
+      units: [{ iid: 1, owner: 1, defId: "u1" as never, zone: "battlefield", battlefield: 0 }],
+      extraDefs: [makeCardDef({ type: "unit", id: "u1" as never, might: 3 }), spell(FIGHT_OR_FLIGHT, 2, 0)],
+      playerPatch: [{ energy: 2, hand: [] }, {}],
+    });
+    putInHand(state, 2, 0, FIGHT_OR_FLIGHT);
+    state = applyAction(state, { type: "playCard", iid: 2 });
+    expect(state.instances[1]!.zone).toBe("base");
+    expect(state.instances[1]!.battlefield).toBeNull();
+  });
+
+  it("Block grants a unit [Shield 3] and [Tank] this turn", () => {
+    let state = makeBareGame({
+      units: [{ iid: 1, owner: 0, defId: "u1" as never, zone: "base" }],
+      extraDefs: [makeCardDef({ type: "unit", id: "u1" as never, might: 2 }), spell(BLOCK, 2, 0)],
+      playerPatch: [{ energy: 2, hand: [] }, {}],
+    });
+    putInHand(state, 2, 0, BLOCK);
+    state = applyAction(state, { type: "playCard", iid: 2 });
+    expect(state.instances[1]!.shieldThisTurn).toBe(3);
+    expect(state.instances[1]!.tankThisTurn).toBe(true);
+  });
+
+  it("Sprite Call plays a ready Temporary Sprite token", () => {
+    let state = makeBareGame({ extraDefs: [spell(SPRITE_CALL, 3, 0)], playerPatch: [{ energy: 3, hand: [] }, {}] });
+    putInHand(state, 1, 0, SPRITE_CALL);
+    state = applyAction(state, { type: "playCard", iid: 1 });
+    const token = Object.values(state.instances).find((i) => i.controller === 0 && i.zone === "base" && i.temporary);
+    expect(token).toBeDefined();
+    expect(token!.exhausted).toBe(false); // ready
+  });
+
+  it("Teemo - Scout gives itself +3 Might this turn when played", () => {
+    let state = makeBareGame({ extraDefs: [makeCardDef({ type: "unit", id: TEEMO_SCOUT as never, might: 2 })], playerPatch: [{ energy: 2, hand: [] }, {}] });
+    putInHand(state, 1, 0, TEEMO_SCOUT);
+    state = applyAction(state, { type: "playCard", iid: 1 });
+    expect(state.instances[1]!.tempMightDelta).toBe(3);
+  });
+
+  it("Blastcone Fae gives another unit -2 Might this turn when played", () => {
+    let state = makeBareGame({
+      units: [{ iid: 1, owner: 0, defId: "other" as never, zone: "base" }],
+      extraDefs: [makeCardDef({ type: "unit", id: "other" as never, might: 5 }), makeCardDef({ type: "unit", id: BLASTCONE_FAE as never, might: 2 })],
+      playerPatch: [{ energy: 2, hand: [] }, {}],
+    });
+    putInHand(state, 2, 0, BLASTCONE_FAE);
+    state = applyAction(state, { type: "playCard", iid: 2 }); // sole other unit -> auto-target
+    expect(state.instances[1]!.tempMightDelta).toBe(-2);
   });
 });

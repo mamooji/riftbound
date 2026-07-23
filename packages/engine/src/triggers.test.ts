@@ -41,7 +41,7 @@ describe("onPlayCard", () => {
     state.instances[2] = {
       iid: 2 as never, defId: "other" as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["other"] = makeCardDef({ type: "unit", id: "other" as never });
     state.players[0]!.hand.push(2 as never);
@@ -62,7 +62,7 @@ describe("onPlayCard", () => {
     state.instances[2] = {
       iid: 2 as never, defId: PIT_ROOKIE as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 2 });
     expect(state.instances[1]!.buffed).toBe(true); // the only OTHER friendly unit
@@ -84,7 +84,7 @@ describe("onPlayCard", () => {
     state.instances[3] = {
       iid: 3 as never, defId: SOLARI_SHIELDBEARER as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 3 });
     expect(state.pendingTrigger).not.toBeNull();
@@ -183,7 +183,7 @@ describe("onUnitDeath ([Deathknell])", () => {
     state.instances[50] = {
       iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
     startShowdown(state, 0, 1);
@@ -201,7 +201,7 @@ describe("onBeginningPhase", () => {
     state.instances[50] = {
       iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
     state = applyAction(state, { type: "endTurn" }); // -> P1's turn (no effect, wrong legend)
@@ -216,7 +216,7 @@ describe("onEndTurn", () => {
     state.instances[600] = {
       iid: 600 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runePool",
       battlefield: null, exhausted: true, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["rune"] = makeCardDef({ type: "rune", id: "rune" as never });
     state.players[0]!.runePool.push(600 as never);
@@ -234,7 +234,7 @@ describe("Vanguard Captain's [Legion] gate", () => {
     noLegion.instances[1] = {
       iid: 1 as never, defId: VANGUARD_CAPTAIN as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     const before = Object.keys(noLegion.instances).length;
     noLegion = applyAction(noLegion, { type: "playCard", iid: 1 }); // first card this turn -- no Legion
@@ -250,12 +250,12 @@ describe("Vanguard Captain's [Legion] gate", () => {
     withLegion.instances[1] = {
       iid: 1 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     withLegion.instances[2] = {
       iid: 2 as never, defId: VANGUARD_CAPTAIN as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     withLegion = applyAction(withLegion, { type: "playCard", iid: 1 }); // sets playedCardThisTurn
     const before2 = Object.keys(withLegion.instances).length;
@@ -277,7 +277,7 @@ describe("Spirit's Refuge (gear)", () => {
     state.instances[2] = {
       iid: 2 as never, defId: SPIRITS_REFUGE as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 2 });
     expect(state.instances[1]!.buffed).toBe(true); // only one legal target -> auto-resolved
@@ -296,12 +296,12 @@ describe("[Vision] cluster", () => {
     state.instances[1] = {
       iid: 1 as never, defId: JEWELED_COLOSSUS as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.instances[50] = {
       iid: 50 as never, defId: "top-card" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 1 });
     expect(state.pendingTrigger).not.toBeNull(); // always pauses -- "may" always asks
@@ -337,7 +337,7 @@ describe("multi-pick triggers (\"up to N\")", () => {
     state.instances[4] = {
       iid: 4 as never, defId: KINKOU_MONK as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 4 });
     // 3 legal OTHER friendly units (1, 2, 3) -- a real choice, so it pauses.
@@ -372,7 +372,7 @@ describe("multi-pick triggers (\"up to N\")", () => {
     state.instances[2] = {
       iid: 2 as never, defId: KINKOU_MONK as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 2 });
     expect(state.pendingTrigger).toBeNull();
@@ -390,11 +390,11 @@ describe("multi-pick triggers (\"up to N\")", () => {
       ],
       playerPatch: [{ hand: [10 as never, 11 as never], mainDeck: [50 as never, 51 as never] }, {}],
     });
-    state.instances[2] = { iid: 2 as never, defId: "killer" as never, owner: 1, controller: 1, zone: "battlefield", battlefield: 0, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[10] = { iid: 10 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[11] = { iid: 11 as never, defId: "hand2" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[50] = { iid: 50 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[51] = { iid: 51 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[2] = { iid: 2 as never, defId: "killer" as never, owner: 1, controller: 1, zone: "battlefield", battlefield: 0, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[10] = { iid: 10 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[11] = { iid: 11 as never, defId: "hand2" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[50] = { iid: 50 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[51] = { iid: 51 as never, defId: "hand1" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
 
     startShowdown(state, 0, 1); // P1 kills the 1-Might Undercover Agent -- Deathknell fires
     expect(state.pendingTrigger).not.toBeNull(); // 2 hand cards to choose from -- a real pick
@@ -419,9 +419,9 @@ describe("multi-pick triggers (\"up to N\")", () => {
       ],
       playerPatch: [{ mainDeck: [50 as never, 51 as never] }, {}],
     });
-    state.instances[2] = { iid: 2 as never, defId: "killer" as never, owner: 1, controller: 1, zone: "battlefield", battlefield: 0, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[2] = { iid: 2 as never, defId: "killer" as never, owner: 1, controller: 1, zone: "battlefield", battlefield: 0, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
 
     startShowdown(state, 0, 1);
@@ -443,7 +443,7 @@ describe("[Deflect N]", () => {
     state.instances[2] = {
       iid: 2 as never, defId: SOLARI_SHIELDBEARER as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     return state;
   }
@@ -499,7 +499,7 @@ describe("Stun-reaction cluster", () => {
     state.instances[50] = {
       iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
     startShowdown(state, 0, 0); // P0 attacks and kills the stunned enemy
@@ -571,9 +571,9 @@ describe("more [Deathknell] cards", () => {
       [makeCardDef({ type: "unit", id: TASTY_FAEFOLK as never, name: "Tasty Faefolk", might: 1 })],
       [{ mainDeck: [50 as never, 51 as never, 52 as never], runeDeck: [60 as never, 61 as never] }, {}],
     );
-    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[60] = { iid: 60 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[61] = { iid: 61 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[60] = { iid: 60 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[61] = { iid: 61 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
     state.defs["rune"] = makeCardDef({ type: "rune", id: "rune" as never });
 
@@ -589,7 +589,7 @@ describe("more [Deathknell] cards", () => {
       [makeCardDef({ type: "unit", id: SOARING_SCOUT as never, name: "Soaring Scout", might: 1 })],
       [{ runeDeck: [60 as never] }, {}],
     );
-    state.instances[60] = { iid: 60 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[60] = { iid: 60 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runeDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["rune"] = makeCardDef({ type: "rune", id: "rune" as never });
 
     startShowdown(state, 0, 1);
@@ -602,7 +602,7 @@ describe("more [Deathknell] cards", () => {
       EKKO_RECURRENT,
       [makeCardDef({ type: "unit", id: EKKO_RECURRENT as never, name: "Ekko - Recurrent", might: 1 })],
     );
-    state.instances[70] = { iid: 70 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runePool", battlefield: null, exhausted: true, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[70] = { iid: 70 as never, defId: "rune" as never, owner: 0, controller: 0, zone: "runePool", battlefield: null, exhausted: true, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["rune"] = makeCardDef({ type: "rune", id: "rune" as never });
     state.players[0]!.runePool.push(70 as never);
 
@@ -630,7 +630,7 @@ describe("more [Deathknell] cards", () => {
     const kogMawDying = {
       iid: 99 as never, defId: KOG_MAW as never, owner: 0 as const, controller: 0 as const,
       zone: "trash" as const, battlefield: null, exhausted: false, damage: 0, buffed: false,
-      temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.defs[KOG_MAW] = makeCardDef({ type: "unit", id: KOG_MAW as never, name: "Kog'Maw - Caustic", might: 1 });
 
@@ -658,12 +658,12 @@ describe("[Vision] follow-ons", () => {
     state.instances[3] = {
       iid: 3 as never, defId: KARMA as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.instances[50] = {
       iid: 50 as never, defId: "top-card" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
 
     state = applyAction(state, { type: "playCard", iid: 3 });
@@ -689,12 +689,12 @@ describe("[Vision] follow-ons", () => {
     state.instances[2] = {
       iid: 2 as never, defId: "plain-unit" as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state.instances[50] = {
       iid: 50 as never, defId: "plain-unit" as never, owner: 0, controller: 0, zone: "mainDeck",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 2 });
     // "plain-unit" has no on-play ability of its own, but Gemcraft Seer's grant still offers Vision.
@@ -719,8 +719,8 @@ describe("Karthus - Eternal", () => {
       ],
       playerPatch: [{ mainDeck: [50 as never, 51 as never] }, {}],
     });
-    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
 
     startShowdown(state, 0, 1); // kills Watchful Sentry -- Deathknell draws 1, doubled by Karthus -> 2
@@ -739,8 +739,8 @@ describe("Karthus - Eternal", () => {
       ],
       playerPatch: [{ mainDeck: [50 as never, 51 as never] }, {}],
     });
-    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[50] = { iid: 50 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[51] = { iid: 51 as never, defId: "card" as never, owner: 0, controller: 0, zone: "mainDeck", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["card"] = makeCardDef({ type: "unit", id: "card" as never });
 
     startShowdown(state, 0, 1);
@@ -763,7 +763,7 @@ describe("Wildclaw Shaman", () => {
     state.instances[2] = {
       iid: 2 as never, defId: WILDCLAW_SHAMAN as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 2 }); // enters exhausted (no [Accelerate]/ready text)
     expect(state.instances[2]!.exhausted).toBe(true);
@@ -783,7 +783,7 @@ describe("Wildclaw Shaman", () => {
     state.instances[1] = {
       iid: 1 as never, defId: WILDCLAW_SHAMAN as never, owner: 0, controller: 0, zone: "hand",
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
     state = applyAction(state, { type: "playCard", iid: 1 });
     expect(state.pendingTrigger).toBeNull(); // nothing to spend -- no decision to make
@@ -802,7 +802,7 @@ describe("more [Legion] cards", () => {
     return {
       iid: iid as never, defId: defId as never, owner: 0 as const, controller: 0 as const, zone: "hand" as const,
       battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false,
-      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+      stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
     };
   }
 

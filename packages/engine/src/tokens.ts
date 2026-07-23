@@ -33,6 +33,7 @@ export const RECRUIT_TOKEN: CardDef = {
   auraMightBonus: 0,
   gankingWhileBuffed: false,
   timing: "sorcery",
+  hidden: false,
   image: null,
 };
 
@@ -58,6 +59,7 @@ export const SPRITE_TOKEN: CardDef = {
   auraMightBonus: 0,
   gankingWhileBuffed: false,
   timing: "sorcery",
+  hidden: false,
   image: null,
 };
 
@@ -88,7 +90,7 @@ export function createToken(
     temporary: def === SPRITE_TOKEN,
     stunned: false,
     tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
   state.instances[iid] = inst;
   state.log.push(`P${player} creates a ${def.name} token${zone === "battlefield" ? ` at ${state.battlefields[battlefield!]!.name}` : ""}`);

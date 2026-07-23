@@ -166,6 +166,7 @@ export function endOfTurnPhase(state: GameState, player: PlayerId): void {
     inst.tankThisTurn = false;
   }
   for (const ps of state.players) ps.nextUnitEntersReady = false;
+  state.preventSpellAbilityDamage = false; // "this turn" prevention (Unyielding Spirit) expires
 
   const p = state.players[player];
   p.energy = 0;

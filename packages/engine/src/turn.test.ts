@@ -17,7 +17,7 @@ function putInTrash(state: ReturnType<typeof makeBareGame>, iid: number, owner: 
     temporary: false,
     stunned: false,
     tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false,
+    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
   };
 }
 

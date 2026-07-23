@@ -70,8 +70,8 @@ describe("Sun Disc: exhaust, [Legion] -- the next unit you play this turn enters
       ],
       playerPatch: [{ hand: [2 as never, 3 as never] }, {}],
     });
-    state.instances[2] = { iid: 2 as never, defId: "u1" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
-    state.instances[3] = { iid: 3 as never, defId: "u2" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[2] = { iid: 2 as never, defId: "u1" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
+    state.instances[3] = { iid: 3 as never, defId: "u2" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
 
     expect(getLegalActions(state, 0).some((a) => a.type === "activateAbility" && a.sourceIid === 1)).toBe(false); // no Legion yet
     state = applyAction(state, { type: "playCard", iid: 2 }); // sets playedCardThisTurn -- u1 itself enters exhausted as normal
@@ -91,7 +91,7 @@ describe("Sun Disc: exhaust, [Legion] -- the next unit you play this turn enters
       extraDefs: [makeCardDef({ type: "gear", id: SUN_DISC as never, name: "Sun Disc" })],
       playerPatch: [{ hand: [2 as never] }, {}],
     });
-    state.instances[2] = { iid: 2 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false };
+    state.instances[2] = { iid: 2 as never, defId: "filler" as never, owner: 0, controller: 0, zone: "hand", battlefield: null, exhausted: false, damage: 0, buffed: false, temporary: false, stunned: false, tempMightDelta: 0, gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null };
     state.defs["filler"] = makeCardDef({ type: "unit", id: "filler" as never });
     state = applyAction(state, { type: "playCard", iid: 2 });
     state = applyAction(state, { type: "activateAbility", sourceIid: 1 });

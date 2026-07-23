@@ -12,6 +12,7 @@ import {
   getLegalActions,
   needsAssignment,
   nextInt,
+  windowIsOpen,
   type Action,
   type GameState,
   type RngState,
@@ -26,8 +27,9 @@ import {
 export function actingPlayer(state: GameState): PlayerId {
   if (state.mulligan.pending !== null) return state.mulligan.pending;
   if (state.pendingTrigger !== null) return state.pendingTrigger.player;
+  if (state.chain.length > 0) return state.priority!; // Closed State: the Priority holder responds
   const sd = state.showdown;
-  if (sd && sd.windowOpen) return sd.focus;
+  if (sd && windowIsOpen(sd)) return state.priority!;
   if (sd && sd.toAssign !== null && needsAssignment(state, sd.toAssign)) return sd.toAssign;
   return state.activePlayer;
 }
