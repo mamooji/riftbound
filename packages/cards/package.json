@@ -1,0 +1,18 @@
+{
+  "name": "@riftbound/cards",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "fetch": "tsx src/pipeline/fetchRiftcodex.ts",
+    "fetch:ogs": "tsx src/pipeline/fetchRiftcodex.ts ogs"
+  },
+  "dependencies": {
+    "@riftbound/engine": "workspace:*",
+    "@riftbound/shared": "workspace:*"
+  }
+}

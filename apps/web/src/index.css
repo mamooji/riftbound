@@ -1,0 +1,98 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * shadcn-style design tokens, tuned for a dark TCG client. The app is dark-only, so :root holds
+ * the dark values directly. Colors are HSL triplets consumed via hsl(var(--token)).
+ */
+:root {
+  --background: 224 42% 5%;
+  --foreground: 220 20% 92%;
+  --card: 224 30% 9%;
+  --card-foreground: 220 20% 92%;
+  --popover: 224 34% 7%;
+  --popover-foreground: 220 20% 92%;
+  --primary: 245 75% 62%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 224 20% 15%;
+  --secondary-foreground: 220 20% 92%;
+  --muted: 224 18% 13%;
+  --muted-foreground: 220 12% 58%;
+  --accent: 224 22% 18%;
+  --accent-foreground: 220 20% 96%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 224 20% 17%;
+  --input: 224 20% 20%;
+  --ring: 245 75% 62%;
+  --radius: 0.75rem;
+
+  /* Domain accent colors (Riftbound's six domains). */
+  --fury: 0 72% 58%;
+  --calm: 152 55% 50%;
+  --mind: 214 80% 60%;
+  --body: 38 85% 55%;
+  --chaos: 275 65% 62%;
+  --order: 220 15% 82%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-fury: hsl(var(--fury));
+  --color-calm: hsl(var(--calm));
+  --color-mind: hsl(var(--mind));
+  --color-body: hsl(var(--body));
+  --color-chaos: hsl(var(--chaos));
+  --color-order: hsl(var(--order));
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(1200px 600px at 50% -10%, hsl(245 60% 18% / 0.35), transparent 60%),
+      radial-gradient(900px 500px at 50% 110%, hsl(200 60% 16% / 0.25), transparent 60%),
+      hsl(var(--background));
+    color: hsl(var(--foreground));
+    color-scheme: dark;
+    font-family:
+      ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Felt-like battlefield texture helper. */
+.felt {
+  background-image:
+    radial-gradient(circle at 30% 20%, hsl(var(--primary) / 0.08), transparent 40%),
+    linear-gradient(180deg, hsl(224 30% 11%), hsl(224 34% 7%));
+}

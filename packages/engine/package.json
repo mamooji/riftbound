@@ -1,0 +1,17 @@
+{
+  "name": "@riftbound/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@riftbound/shared": "workspace:*",
+    "immer": "^10.1.0"
+  }
+}
