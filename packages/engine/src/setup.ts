@@ -8,7 +8,7 @@
  */
 import type { InstanceId, PlayerId } from "@riftbound/shared";
 import { createRng, nextInt, shuffle } from "./rng.js";
-import type { CardDef, CardInstance, GameState, PlayerState } from "./state.js";
+import { newInstance, type CardDef, type CardInstance, type GameState, type PlayerState } from "./state.js";
 import { drawFromMain } from "./deck.js";
 
 export { drawFromMain } from "./deck.js";
@@ -50,21 +50,7 @@ export function createGame(
   function makeInstance(def: CardDef, owner: PlayerId, zone: CardInstance["zone"]): InstanceId {
     register(def);
     const iid = nextIid++ as InstanceId;
-    instances[iid as number] = {
-      iid,
-      defId: def.id,
-      owner,
-      controller: owner,
-      zone,
-      battlefield: null,
-      exhausted: false,
-      damage: 0,
-      buffed: false,
-      temporary: false,
-      stunned: false,
-      tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
-    };
+    instances[iid as number] = newInstance({ iid, defId: def.id, owner, zone });
     return iid;
   }
 

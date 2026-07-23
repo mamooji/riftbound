@@ -6,10 +6,7 @@
  */
 import type { CardDefId, PlayerId } from "@riftbound/shared";
 import { effectiveMight, type CardDef, type GameState } from "./state.js";
-
-const NOXUS_HOPEFUL = "ogn-012-298";
-const RHASA_THE_SUNDERER = "ogn-195-298";
-const SKY_SPLITTER = "ogn-014-298";
+import { NOXUS_HOPEFUL, RHASA_THE_SUNDERER, SKY_SPLITTER } from "./ids.js";
 
 /** Energy discount for a specific card id, if any (never below 0 -- clamped by the caller). */
 function energyDiscount(state: GameState, player: PlayerId, defId: CardDefId): number {

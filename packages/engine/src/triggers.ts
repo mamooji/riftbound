@@ -19,6 +19,49 @@ import { opponentOf, type InstanceId, type PlayerId } from "@riftbound/shared";
 import { drawFromMain, recycleTopOfMainDeck } from "./deck.js";
 import { createToken, RECRUIT_TOKEN } from "./tokens.js";
 import {
+  AHRI,
+  ANNIE_STARTER,
+  BLASTCONE_FAE,
+  CITHRIA,
+  DANGEROUS_DUO,
+  DARIUS_EXECUTIONER,
+  ECLIPSE_HERALD,
+  EKKO_RECURRENT,
+  FAITHFUL_MANUFACTOR,
+  FORGE_OF_THE_FUTURE,
+  GAREN_STARTER,
+  GEMCRAFT_SEER,
+  JEWELED_COLOSSUS,
+  JINX,
+  KARMA,
+  KARTHUS_ETERNAL,
+  KINKOU_MONK,
+  KOG_MAW,
+  LEONA,
+  LUX_STARTER,
+  MACHINE_EVANGEL,
+  MASTER_YI_STARTER,
+  MYSTIC_PORO,
+  NOXIAN_DRUMMER,
+  PIT_ROOKIE,
+  SAI_SCOUT,
+  SCRAPYARD_CHAMPION,
+  SETT,
+  SOARING_SCOUT,
+  SOLARI_SHIELDBEARER,
+  SOLARI_SHRINE,
+  SPIRITS_REFUGE,
+  SUPER_MEGA_DEATH_ROCKET,
+  TASTY_FAEFOLK,
+  TEEMO_SCOUT,
+  TRIFARIAN_GLORYSEEKER,
+  UNDERCOVER_AGENT,
+  VANGUARD_CAPTAIN,
+  VOLIBEAR,
+  WATCHFUL_SENTRY,
+  WILDCLAW_SHAMAN,
+} from "./ids.js";
+import {
   canChooseThroughDeflect,
   effectiveMight,
   getInstance,
@@ -32,151 +75,21 @@ import {
   type CardInstance,
   type GameState,
 } from "./state.js";
+import { friendlyUnits as friendlyUnitsInPlay, isInPlay } from "./queries.js";
+import {
+  ALL_TRIGGERS,
+  fireTrigger,
+  register,
+  resolvePendingTrigger,
+  type TriggerEffect,
+} from "./triggerCore.js";
 
-export interface TriggerEffect {
-  mandatory: boolean;
-  /** "Up to N" multi-target abilities (e.g. Kinkou Monk's "buff up to two", Undercover Agent's
-   *  "discard 2") — default 1. Each accepted pick calls `resolve` once and stays pending (offering
-   *  the remaining legal targets minus anything already picked) until N picks or a decline. Not
-   *  used by `legalBattlefields` triggers, which only ever offer a single one-shot pick. */
-  maxPicks?: number;
-  /** By default, a target already picked this sequence is excluded from the next pick (right for
-   *  "buff up to two OTHER units" or "discard 2" — you wouldn't re-pick the same one). A handful of
-   *  cards are N truly INDEPENDENT instructions instead (Falling Star's "Deal 3 to a unit. Deal 3
-   *  to a unit.", Icathian Rain's six "Deal 2 to a unit"s) where the SAME unit may legally be
-   *  targeted again by a later instruction. Set true to allow that. */
-  allowRepeatTargets?: boolean;
-  condition?: (state: GameState, player: PlayerId, sourceIid: InstanceId, ctx: unknown) => boolean;
-  legalTargets?: (state: GameState, player: PlayerId, sourceIid: InstanceId) => InstanceId[];
-  /** For effects that target a BATTLEFIELD rather than a game object (e.g. "deal 3 to all enemy
-   *  units at a battlefield") — mutually exclusive with `legalTargets`. Always a single, immediate
-   *  pick (no multi-pick concept; no Set 1 card needs to choose more than one battlefield). */
-  legalBattlefields?: (state: GameState, player: PlayerId, sourceIid: InstanceId) => number[];
-  resolve: (
-    state: GameState,
-    player: PlayerId,
-    sourceIid: InstanceId,
-    targetIid?: InstanceId,
-    battlefield?: number,
-  ) => void;
-  /** For "do X per pick, THEN do Y once" abilities (e.g. Undercover Agent's "discard 2, then draw
-   *  2") — called exactly once when the pick sequence ends (maxPicks reached, declined, or no more
-   *  legal targets), including the 0/1-target auto-resolve path. `picked` is however many targets
-   *  were actually picked (may be fewer than `maxPicks` if there weren't enough legal ones). */
-  onComplete?: (state: GameState, player: PlayerId, sourceIid: InstanceId, picked: InstanceId[]) => void;
-}
-
-/** Every registered trigger, keyed by the same `kind` string used in `pendingTrigger.kind` — one
- *  merged table so `resolvePendingTrigger` (and `getLegalActions`, to enumerate target choices)
- *  can look any of them back up after a decision. Exported so other registries (e.g. `spells.ts`)
- *  can feed the same shared table/pending-decision machinery instead of inventing a second one. */
-export const ALL_TRIGGERS: Record<string, TriggerEffect> = {};
-export function register(kind: string, spec: TriggerEffect): string {
-  ALL_TRIGGERS[kind] = spec;
-  return kind;
-}
-
-/** Exported so other registries (`spells.ts`) can chain a SECOND trigger from within an `onComplete`
- *  callback — e.g. a "each player does X, starting with the next player" spell fires one player's
- *  decision, then its `onComplete` fires the other's via this same function. */
-export function fireTrigger(
-  state: GameState,
-  kind: string,
-  player: PlayerId,
-  sourceIid: InstanceId,
-  ctx: unknown,
-): void {
-  if (state.pendingTrigger) return; // one pending decision at a time (see file header)
-  const spec = ALL_TRIGGERS[kind]!;
-  if (spec.condition && !spec.condition(state, player, sourceIid, ctx)) return;
-
-  if (spec.legalBattlefields) {
-    const bfs = spec.legalBattlefields(state, player, sourceIid);
-    if (bfs.length === 0) {
-      if (spec.mandatory) spec.onComplete?.(state, player, sourceIid, []);
-      return;
-    }
-    if (spec.mandatory && bfs.length === 1) {
-      spec.resolve(state, player, sourceIid, undefined, bfs[0]);
-      spec.onComplete?.(state, player, sourceIid, []);
-      return;
-    }
-    state.pendingTrigger = { kind, sourceIid, player, maxPicks: 1, picked: [] };
-    return;
-  }
-
-  const targets = spec.legalTargets ? spec.legalTargets(state, player, sourceIid) : null;
-
-  if (targets !== null && targets.length === 0) {
-    // Nothing to target -- most triggers just no-op, but a mandatory "X, then Y" effect (e.g.
-    // Undercover Agent's "discard 2, then draw 2") still needs its "then Y" half to happen even
-    // when there was nothing to discard.
-    if (spec.mandatory) spec.onComplete?.(state, player, sourceIid, []);
-    return;
-  }
-  if (spec.mandatory && (targets === null || targets.length <= 1)) {
-    spec.resolve(state, player, sourceIid, targets?.[0]);
-    spec.onComplete?.(state, player, sourceIid, targets ?? []);
-    return;
-  }
-  state.pendingTrigger = { kind, sourceIid, player, maxPicks: spec.maxPicks ?? 1, picked: [] };
-}
-
-export function resolvePendingTrigger(
-  state: GameState,
-  accept: boolean,
-  targetIid?: InstanceId,
-  battlefield?: number,
-): void {
-  const pending = state.pendingTrigger;
-  if (!pending) throw new Error("resolvePendingTrigger: nothing pending");
-  const spec = ALL_TRIGGERS[pending.kind]!;
-  if (!accept) {
-    state.pendingTrigger = null;
-    spec.onComplete?.(state, pending.player, pending.sourceIid, pending.picked);
-    return;
-  }
-
-  if (spec.legalBattlefields) {
-    const legalBfs = spec.legalBattlefields(state, pending.player, pending.sourceIid);
-    if (battlefield === undefined || !legalBfs.includes(battlefield)) {
-      throw new Error("resolvePendingTrigger: invalid battlefield");
-    }
-    state.pendingTrigger = null;
-    spec.resolve(state, pending.player, pending.sourceIid, undefined, battlefield);
-    spec.onComplete?.(state, pending.player, pending.sourceIid, []);
-    return;
-  }
-
-  let legal: InstanceId[] = [];
-  if (spec.legalTargets) {
-    legal = spec.legalTargets(state, pending.player, pending.sourceIid);
-    if (!spec.allowRepeatTargets) legal = legal.filter((t) => !pending.picked.includes(t));
-    if (targetIid === undefined || !legal.includes(targetIid)) {
-      throw new Error("resolvePendingTrigger: invalid target");
-    }
-  }
-  // Clear BEFORE calling resolve() -- resolve() may itself fire another trigger (e.g. Solari
-  // Shieldbearer's stun -> Leona's onStun reaction), which `fireTrigger`'s "one pending decision
-  // at a time" guard would otherwise block if this one were still considered "pending."
-  state.pendingTrigger = null;
-  spec.resolve(state, pending.player, pending.sourceIid, targetIid);
-  if (!spec.legalTargets) return; // plain yes/no trigger, no multi-pick concept
-
-  // If resolve() itself opened a NEW pending decision (a chained trigger), let that run first --
-  // don't clobber it by re-opening this "up to N" prompt underneath it (and defer onComplete,
-  // since the sequence isn't really done from the player's point of view until that resolves too).
-  if (state.pendingTrigger !== null) return;
-
-  const picked = [...pending.picked, targetIid!];
-  let stillLegal = spec.legalTargets(state, pending.player, pending.sourceIid);
-  if (!spec.allowRepeatTargets) stillLegal = stillLegal.filter((t) => !picked.includes(t));
-  if (picked.length < pending.maxPicks && stillLegal.length > 0) {
-    state.pendingTrigger = { ...pending, picked };
-  } else {
-    spec.onComplete?.(state, pending.player, pending.sourceIid, picked);
-  }
-}
+// The generic trigger engine (the `TriggerEffect` shape, the `ALL_TRIGGERS` table, and
+// `register`/`fireTrigger`/`resolvePendingTrigger`) now lives in triggerCore.ts. Re-exported here so
+// the many existing importers of "./triggers.js" keep working unchanged, and so the Set-1 card
+// dispatch below can use `fireTrigger`/`register` directly.
+export { ALL_TRIGGERS, fireTrigger, register, resolvePendingTrigger };
+export type { TriggerEffect };
 
 function legendDef(state: GameState, player: PlayerId): CardDef {
   const legendIid = state.players[player].legendIid;
@@ -203,6 +116,29 @@ export function channelRunesExhausted(state: GameState, player: PlayerId, count:
 }
 
 /**
+ * Removes a unit/gear permanent from the board (an Active Kill, rule 415.1.a.1 — no damage math)
+ * and fires every death-triggered hook: [Deathknell] (`onUnitDeath`), "kill a stunned enemy"
+ * reactions (`onKillStunnedEnemy`), and battlefield-scoped deaths like Kog'Maw
+ * (`onUnitDeathAtBattlefield`). This is the SINGLE definition of "a unit dies" — shared by
+ * showdown.ts's combat resolution, spells.ts's removal effects, and the mass-damage helper below.
+ *
+ * Deliberately does NOT recompute battlefield control: the Showdown resolver recomputes once for
+ * the whole battlefield after all deaths, and spell effects call `updateControl` themselves (via
+ * their own thin wrapper). Keeping control out of here avoids per-death control flips mid-combat.
+ */
+export function killUnit(state: GameState, inst: CardInstance): void {
+  if (!isInPlay(inst)) return;
+  const bf = inst.battlefield;
+  inst.zone = "trash";
+  inst.battlefield = null;
+  inst.damage = 0;
+  state.log.push(`P${inst.controller} loses ${state.defs[inst.defId]!.name}`);
+  onUnitDeath(state, inst);
+  onKillStunnedEnemy(state, inst);
+  if (bf !== null) onUnitDeathAtBattlefield(state, inst, bf);
+}
+
+/**
  * Applies flat damage to every unit at a battlefield (both sides) and resolves any resulting
  * deaths (lethal check only — no assignment choice, since it's a uniform amount to everyone, not
  * a Might-based split). Used by Kog'Maw's Deathknell. Snapshots the victim list up front so
@@ -214,28 +150,14 @@ function dealDamageToUnitsAt(state: GameState, battlefield: number, amount: numb
   );
   for (const v of victims) v.damage += amount;
   for (const v of victims) {
-    if (v.zone === "battlefield" && v.damage >= effectiveMight(state, v, undefined)) {
-      v.zone = "trash";
-      v.battlefield = null;
-      v.damage = 0;
-      state.log.push(`P${v.controller} loses ${state.defs[v.defId]!.name}`);
-      onUnitDeath(state, v);
-      onKillStunnedEnemy(state, v);
-      onUnitDeathAtBattlefield(state, v, battlefield);
-    }
+    if (v.zone === "battlefield" && v.damage >= effectiveMight(state, v, undefined)) killUnit(state, v);
   }
 }
 
-function friendlyUnits(state: GameState, player: PlayerId, exclude?: InstanceId) {
-  return Object.values(state.instances)
-    .filter(
-      (i) =>
-        i.controller === player &&
-        (i.zone === "base" || i.zone === "battlefield") &&
-        state.defs[i.defId]!.type === "unit" &&
-        i.iid !== exclude,
-    )
-    .map((i) => i.iid);
+/** Ids of `player`'s units in play (optionally excluding one) — the id-returning form the trigger
+ *  `legalTargets` callbacks want, over the shared `queries.friendlyUnits`. */
+function friendlyUnits(state: GameState, player: PlayerId, exclude?: InstanceId): InstanceId[] {
+  return friendlyUnitsInPlay(state, player, exclude).map((i) => i.iid);
 }
 
 /** Creates a Recruit token wherever `sourceIid` itself currently is (its base or battlefield). */
@@ -257,25 +179,10 @@ interface OnPlayCtx {
   playedDef: CardDef;
 }
 
-const KAI_SA = "ogn-247-298";
-const VOLIBEAR = "ogn-249-298";
-const JINX = "ogn-251-298";
-const TEEMO_SCOUT = "ogn-197-298"; // [Hidden] When you play me, give me +3 Might this turn.
-const BLASTCONE_FAE = "ogn-097-298"; // [Hidden] When you play me, give a unit -2 Might this turn (min 1).
-const DARIUS = "ogn-253-298";
-const AHRI = "ogn-255-298";
-const LEE_SIN_LEGEND = "ogn-257-298";
-const YASUO = "ogn-259-298";
-const LEONA = "ogn-261-298";
-const TEEMO = "ogn-263-298";
-const VIKTOR_LEGEND = "ogn-265-298";
-const MISS_FORTUNE = "ogn-267-298";
-const SETT = "ogn-269-298";
-const ANNIE_STARTER = "ogs-017-024";
-const MASTER_YI_STARTER = "ogs-019-024";
-const LUX_STARTER = "ogs-021-024";
-const GAREN_STARTER = "ogs-023-024";
-void KAI_SA, DARIUS, LEE_SIN_LEGEND, YASUO, TEEMO, VIKTOR_LEGEND, MISS_FORTUNE; // activated — implemented in abilities.ts, documented here for the "all 16" inventory
+// Kai'Sa, Darius, Lee Sin, Yasuo, Teemo, Viktor, and Miss Fortune are the seven legends whose
+// abilities are *activated* (implemented in abilities.ts), not triggered/passive — noted here for
+// the "all 16 legends" inventory; their ids live in ids.ts.
+// TEEMO_SCOUT/BLASTCONE_FAE are [Hidden] units with "when you play me" triggers registered below.
 
 /** Master Yi - Wuju Bladesman (Starter)'s passive: while a friendly unit defends alone, it gets
  *  +2 Might. Pure combat math (no event), called directly from showdown.ts's `mightIn`. */
@@ -474,8 +381,6 @@ export function onArrival(state: GameState, battlefield: number, inst: CardInsta
   if (kind) fireTrigger(state, kind, inst.controller, inst.iid, { battlefield });
 }
 
-const SUPER_MEGA_DEATH_ROCKET = "ogn-252-298";
-
 /** Triggered abilities that live on a card WHILE IT SITS IN THE TRASH (rule 378: legal, since the
  *  Trash is Public Information) — keyed by defId, checked against the conquering player's own
  *  trash in `onConquer` below. Only Super Mega Death Rocket needs this so far; if a player somehow
@@ -533,7 +438,6 @@ export function onUnitDeath(state: GameState, inst: CardInstance): void {
   if (legendKind) fireTrigger(state, legendKind, inst.controller, inst.iid, undefined);
 }
 
-const KARTHUS_ETERNAL = "ogn-236-298";
 function hasKarthusEternal(state: GameState, player: PlayerId): boolean {
   return Object.values(state.instances).some(
     (i) => i.controller === player && (i.zone === "base" || i.zone === "battlefield") && i.defId === KARTHUS_ETERNAL,
@@ -591,34 +495,6 @@ export function onKillStunnedEnemy(state: GameState, dyingInst: CardInstance): v
 // Curated: not every card mentioning these keywords is implemented, see the plan for the list.
 // ---------------------------------------------------------------------------------------------
 
-const PIT_ROOKIE = "ogn-136-298";
-const CITHRIA = "ogn-139-298";
-const SPIRITS_REFUGE = "ogn-063-298";
-const WILDCLAW_SHAMAN = "ogn-147-298";
-const DANGEROUS_DUO = "ogn-016-298";
-const SCRAPYARD_CHAMPION = "ogn-020-298";
-const TRIFARIAN_GLORYSEEKER = "ogn-217-298";
-const DARIUS_EXECUTIONER = "ogn-243-298";
-const VANGUARD_CAPTAIN = "ogn-218-298";
-const FAITHFUL_MANUFACTOR = "ogn-211-298";
-const FORGE_OF_THE_FUTURE = "ogn-212-298";
-const NOXIAN_DRUMMER = "ogn-222-298";
-const MACHINE_EVANGEL = "ogn-239-298";
-const WATCHFUL_SENTRY = "ogn-096-298";
-const SOLARI_SHIELDBEARER = "ogn-051-298";
-const JEWELED_COLOSSUS = "ogn-086-298";
-const GEMCRAFT_SEER = "ogn-100-298";
-const MYSTIC_PORO = "ogn-171-298";
-const SAI_SCOUT = "ogn-174-298";
-const KINKOU_MONK = "ogn-141-298";
-const UNDERCOVER_AGENT = "ogn-178-298";
-const ECLIPSE_HERALD = "ogn-059-298";
-const SOLARI_SHRINE = "ogn-072-298";
-const TASTY_FAEFOLK = "ogn-075-298";
-const SOARING_SCOUT = "ogn-216-298";
-const EKKO_RECURRENT = "ogn-110-298";
-const KOG_MAW = "ogn-190-298";
-const KARMA = "ogn-235-298";
 /** A generic "granted Vision" kind (Gemcraft Seer: "other friendly units have [Vision]"), distinct
  *  from any specific card's own [Vision] kind — see the grant check in `onPlayCard`. */
 const GRANTED_VISION_KIND = register("grantedVision", visionAbility());

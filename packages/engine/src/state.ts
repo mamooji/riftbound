@@ -297,6 +297,34 @@ export function getInstance(state: GameState, iid: InstanceId): CardInstance {
   return inst;
 }
 
+/**
+ * Builds a `CardInstance` with every per-instance field defaulted, so the full shape lives in ONE
+ * place: `controller` defaults to `owner`, everything else to its "fresh, unmodified" value.
+ * Callers pass the identifying fields (iid/defId/owner/zone) plus any non-default overrides. This
+ * is the single constructor for instances — used by game setup, token creation, and test fixtures —
+ * so a new per-instance field (very common as cards grow) is added here once, not in four literals.
+ */
+export function newInstance(
+  init: Pick<CardInstance, "iid" | "defId" | "owner" | "zone"> & Partial<CardInstance>,
+): CardInstance {
+  return {
+    controller: init.owner,
+    battlefield: null,
+    exhausted: false,
+    damage: 0,
+    buffed: false,
+    temporary: false,
+    stunned: false,
+    tempMightDelta: 0,
+    gankingThisTurn: false,
+    assaultThisTurn: 0,
+    shieldThisTurn: 0,
+    tankThisTurn: false,
+    hiddenOnTurn: null,
+    ...init,
+  };
+}
+
 export function unitsAt(
   state: GameState,
   battlefield: number,

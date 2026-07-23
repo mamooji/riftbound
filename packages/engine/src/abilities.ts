@@ -12,6 +12,24 @@ import type { CardColor, InstanceId, PlayerId } from "@riftbound/shared";
 import { autoPay, canAfford } from "./resources.js";
 import { createToken, RECRUIT_TOKEN } from "./tokens.js";
 import {
+  ARENA_BAR,
+  DARIUS,
+  KAI_SA,
+  LEE_SIN_ASCETIC,
+  LEE_SIN_LEGEND,
+  MISS_FORTUNE,
+  SEAL_OF_DISCORD,
+  SEAL_OF_FOCUS,
+  SEAL_OF_INSIGHT,
+  SEAL_OF_RAGE,
+  SEAL_OF_STRENGTH,
+  SEAL_OF_UNITY,
+  SUN_DISC,
+  TEEMO,
+  VIKTOR_LEGEND,
+  YASUO,
+} from "./ids.js";
+import {
   getInstance,
   giveBuff,
   hasFloatingRune,
@@ -19,6 +37,7 @@ import {
   type GameState,
   type RuneColor,
 } from "./state.js";
+import { friendlyUnits } from "./queries.js";
 
 export interface AbilityCost {
   exhaustSelf?: boolean;
@@ -39,15 +58,6 @@ export interface AbilitySpec {
     sourceIid: InstanceId,
     targetIid?: InstanceId,
   ) => void;
-}
-
-function friendlyUnits(state: GameState, player: PlayerId) {
-  return Object.values(state.instances).filter(
-    (i) =>
-      i.controller === player &&
-      (i.zone === "base" || i.zone === "battlefield") &&
-      state.defs[i.defId]!.type === "unit",
-  );
 }
 
 export function canActivate(
@@ -89,19 +99,19 @@ function sealAbility(color: CardColor): AbilitySpec {
 
 // Seal of Rage/Focus/Insight/Strength/Discord/Unity — one per domain, all the same shape.
 const SEALS: Record<string, CardColor> = {
-  "ogn-040-298": "fury",
-  "ogn-081-298": "calm",
-  "ogn-120-298": "mind",
-  "ogn-163-298": "body",
-  "ogn-204-298": "chaos",
-  "ogn-245-298": "order",
+  [SEAL_OF_RAGE]: "fury",
+  [SEAL_OF_FOCUS]: "calm",
+  [SEAL_OF_INSIGHT]: "mind",
+  [SEAL_OF_STRENGTH]: "body",
+  [SEAL_OF_DISCORD]: "chaos",
+  [SEAL_OF_UNITY]: "order",
 };
 
 export const ABILITIES: Record<string, AbilitySpec> = {
   ...Object.fromEntries(Object.entries(SEALS).map(([id, color]) => [id, sealAbility(color)])),
 
   // Kai'Sa - Daughter of the Void (legend): exhaust: Add a rainbow rune (any color).
-  "ogn-247-298": {
+  [KAI_SA]: {
     cost: { exhaustSelf: true },
     resolve: (state, player) => {
       state.players[player].floatingRunes.push("rainbow");
@@ -110,7 +120,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Darius - Hand of Noxus (legend): exhaust, [Legion] -- Add 1 Energy.
-  "ogn-253-298": {
+  [DARIUS]: {
     cost: { exhaustSelf: true },
     condition: (state, player) => state.players[player].playedCardThisTurn,
     resolve: (state, player) => {
@@ -120,7 +130,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Lee Sin - Blind Monk (legend): 1 Energy, exhaust: Buff a friendly unit.
-  "ogn-257-298": {
+  [LEE_SIN_LEGEND]: {
     cost: { exhaustSelf: true, energy: 1 },
     legalTargets: (state, player) => friendlyUnits(state, player).map((i) => i.iid),
     resolve: (state, _player, _source, targetIid) => {
@@ -132,7 +142,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   // Simplified to the retreat direction only (a unit already at a battlefield) — the ability's
   // real value is bypassing the "must be ready" rule to pull a unit out before it's forced to
   // fight; advancing base->battlefield already exists as a free action when the unit is ready.
-  "ogn-259-298": {
+  [YASUO]: {
     cost: { exhaustSelf: true, energy: 2 },
     legalTargets: (state, player) =>
       friendlyUnits(state, player)
@@ -151,7 +161,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Miss Fortune - Bounty Hunter (legend): exhaust: Give a unit [Ganking] this turn.
-  "ogn-267-298": {
+  [MISS_FORTUNE]: {
     cost: { exhaustSelf: true },
     legalTargets: (state, player) => friendlyUnits(state, player).map((i) => i.iid),
     resolve: (state, _player, _source, targetIid) => {
@@ -160,7 +170,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Viktor - Herald of the Arcane (legend): 1 Energy, exhaust: Play a 1-Might Recruit token.
-  "ogn-265-298": {
+  [VIKTOR_LEGEND]: {
     cost: { exhaustSelf: true, energy: 1 },
     resolve: (state, player) => {
       createToken(state, player, RECRUIT_TOKEN, "base");
@@ -169,7 +179,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
 
   // Teemo - Swift Scout (legend, activated half only — the Hidden-cost half stays deferred):
   // 1 Energy, exhaust: put a Teemo unit you own into your hand from the Champion Zone or board.
-  "ogn-263-298": {
+  [TEEMO]: {
     cost: { exhaustSelf: true, energy: 1 },
     legalTargets: (state, player) => {
       const p = state.players[player];
@@ -190,13 +200,13 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Lee Sin - Ascetic (champion, from the Lee Sin starter's own deck): exhaust: Buff me.
-  "ogn-078-298": {
+  [LEE_SIN_ASCETIC]: {
     cost: { exhaustSelf: true },
     resolve: (state, _player, sourceIid) => giveBuff(getInstance(state, sourceIid)),
   },
 
   // Arena Bar (gear): exhaust: Buff an exhausted friendly unit.
-  "ogn-124-298": {
+  [ARENA_BAR]: {
     cost: { exhaustSelf: true },
     legalTargets: (state, player) =>
       friendlyUnits(state, player)
@@ -208,7 +218,7 @@ export const ABILITIES: Record<string, AbilitySpec> = {
   },
 
   // Sun Disc (gear): exhaust, [Legion] -- the next unit you play this turn enters ready.
-  "ogn-021-298": {
+  [SUN_DISC]: {
     cost: { exhaustSelf: true },
     condition: (state, player) => state.players[player].playedCardThisTurn,
     resolve: (state, player) => {

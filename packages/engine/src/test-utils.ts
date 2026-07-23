@@ -3,7 +3,7 @@
  */
 import type { CardColor, InstanceId, PlayerId } from "@riftbound/shared";
 import { createRng } from "./rng.js";
-import type { CardDef, CardInstance, GameState, PlayerState } from "./state.js";
+import { newInstance, type CardDef, type CardInstance, type GameState, type PlayerState } from "./state.js";
 
 let uid = 0;
 export function resetTestIds(): void {
@@ -42,21 +42,12 @@ export function makeCardDef(overrides: Partial<CardDef> & Pick<CardDef, "type">)
  *  onPlayCard, etc.) look up `state.players[p].legendIid` unconditionally, so every test fixture
  *  needs one even when the test isn't about legend abilities. */
 export function makeLegendInstance(iid: number, owner: PlayerId): CardInstance {
-  return {
+  return newInstance({
     iid: iid as InstanceId,
     defId: `legend-test-${owner}` as CardDef["id"],
     owner,
-    controller: owner,
     zone: "legend",
-    battlefield: null,
-    exhausted: false,
-    damage: 0,
-    buffed: false,
-    temporary: false,
-    stunned: false,
-    tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
-  };
+  });
 }
 
 export interface BareUnit {
@@ -96,21 +87,17 @@ export function makeBareGame(opts: BareGameOptions = {}): GameState {
   }
 
   for (const u of opts.units ?? []) {
-    instances[u.iid] = {
+    instances[u.iid] = newInstance({
       iid: u.iid as InstanceId,
       defId: u.defId,
       owner: u.owner,
-      controller: u.owner,
       zone: u.zone,
       battlefield: u.zone === "battlefield" ? (u.battlefield ?? 0) : null,
       exhausted: u.exhausted ?? false,
-      damage: 0,
       buffed: u.buffed ?? false,
       temporary: u.temporary ?? false,
       stunned: u.stunned ?? false,
-      tempMightDelta: 0,
-      gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
-    };
+    });
   }
   for (const d of opts.extraDefs ?? []) defs[d.id] = d;
 

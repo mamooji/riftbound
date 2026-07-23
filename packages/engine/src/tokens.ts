@@ -9,7 +9,7 @@
  * everywhere else in this engine that hardcodes small, closed sets of Set-1-specific facts.
  */
 import type { PlayerId } from "@riftbound/shared";
-import type { CardDef, CardInstance, GameState, Zone } from "./state.js";
+import { newInstance, type CardDef, type CardInstance, type GameState, type Zone } from "./state.js";
 
 export const RECRUIT_TOKEN: CardDef = {
   id: "token-recruit" as CardDef["id"],
@@ -77,21 +77,15 @@ export function createToken(
 ): CardInstance {
   state.defs[def.id] = def;
   const iid = Object.keys(state.instances).reduce((max, k) => Math.max(max, Number(k)), 0) + 1;
-  const inst: CardInstance = {
+  const inst = newInstance({
     iid: iid as CardInstance["iid"],
     defId: def.id,
     owner: player,
-    controller: player,
     zone,
     battlefield: zone === "battlefield" ? battlefield : null,
     exhausted: !ready,
-    damage: 0,
-    buffed: false,
     temporary: def === SPRITE_TOKEN,
-    stunned: false,
-    tempMightDelta: 0,
-    gankingThisTurn: false, assaultThisTurn: 0, shieldThisTurn: 0, tankThisTurn: false, hiddenOnTurn: null,
-  };
+  });
   state.instances[iid] = inst;
   state.log.push(`P${player} creates a ${def.name} token${zone === "battlefield" ? ` at ${state.battlefields[battlefield!]!.name}` : ""}`);
   return inst;

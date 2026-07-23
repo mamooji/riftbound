@@ -18,12 +18,10 @@ import { dealsDamage, effectiveMight, getInstance, hasTank, unitsAt, totalMightA
 import { canAfford } from "./resources.js";
 import { effectivePlayCost } from "./costModifiers.js";
 import {
+  killUnit,
   legendDefenderMightBonus,
   onAttackDeclared,
   onConquer,
-  onKillStunnedEnemy,
-  onUnitDeath,
-  onUnitDeathAtBattlefield,
 } from "./triggers.js";
 
 /** A unit's Might for this Showdown's purposes (base + Assault/Shield per its side, plus any
@@ -246,7 +244,8 @@ function resolveShowdown(state: GameState): void {
     if (inst) inst.damage += dmg;
   }
 
-  // Deaths (effective Might — a Shielded defender needs more damage to die).
+  // Deaths (effective Might — a Shielded defender needs more damage to die). Control is recomputed
+  // once for the whole battlefield below, so `killUnit` deliberately doesn't touch it per-death.
   for (const inst of Object.values(state.instances)) {
     if (
       inst.zone === "battlefield" &&
@@ -254,13 +253,7 @@ function resolveShowdown(state: GameState): void {
       state.defs[inst.defId]!.type === "unit" &&
       inst.damage >= effectiveMight(state, inst, sd.attacker)
     ) {
-      inst.zone = "trash";
-      inst.battlefield = null;
-      inst.damage = 0;
-      state.log.push(`P${inst.controller} loses ${state.defs[inst.defId]!.name}`);
-      onUnitDeath(state, inst);
-      onKillStunnedEnemy(state, inst);
-      onUnitDeathAtBattlefield(state, inst, bf);
+      killUnit(state, inst);
     }
   }
 
