@@ -12,7 +12,8 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "dev": "turbo run dev",
-    "sim": "pnpm --filter @riftbound/sim start"
+    "sim": "pnpm --filter @riftbound/sim start",
+    "ui": "pnpm --filter @riftbound/ui dev"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

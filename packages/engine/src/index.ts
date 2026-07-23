@@ -44,6 +44,15 @@ export { createRng, nextFloat, nextInt, shuffle } from "./rng.js";
 export type { DeckDefinition, NewGameOptions } from "./setup.js";
 export { createGame, startTurn, endOfTurnPhase } from "./setup.js";
 
+export type {
+  ScenarioCard,
+  ScenarioRune,
+  ScenarioPlayer,
+  ScenarioConfig,
+} from "./sandbox.js";
+export { buildScenario } from "./sandbox.js";
+export { scriptedCardIds } from "./scripted.js";
+
 export {
   floatEnergy,
   floatPower,
